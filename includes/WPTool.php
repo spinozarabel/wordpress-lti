@@ -41,6 +41,7 @@ class WPTool extends Tool
     {
         parent::__construct($data_connector);
 
+        $this->verbose = true;
         $this->setParameterConstraint('resource_link_id', true, 40, array('basic-lti-launch-request'));
         $this->setParameterConstraint('user_id', true);
 
@@ -84,8 +85,16 @@ class WPTool extends Tool
         }
 
         // Get what we are using as the username (unique_id-consumer_key, i.e. _21_1-stir.ac.uk)
-        $scope_userid = lti_get_scope($this->platform->getKey());
-        $user_login = $this->userResult->getID($scope_userid);
+        $options 		= get_site_option('lti_choices');
+        $scope_userid   = lti_get_scope($this->platform->getKey());
+        $user_login     = $this->userResult->getID($scope_userid);
+        // ------------- begin madhu added ------->
+        // get the details of intended site from activity name
+    	$this->intended_blog_id = null;		// preset to null
+        // extract intended site name from passed activity title, all after the colon
+    	$path		= getPathforSiteBasedOnTitle($tool_provider->resource_link->title, $verbose, $intended_blog_id);
+    	$site_name	= $path;	// store this for later use, when $path gets changed to full path and no longer useful as site name
+        // ------------- end madhu added section
         // Sanitize username stripping out unsafe characters
         $user_login = sanitize_user($user_login);
 
@@ -265,6 +274,31 @@ class WPTool extends Tool
         // Return URL for re-direction by Tool Provider class
         $this->redirectUrl = get_bloginfo('url');
     }
+
+    /*
+    *  Based on activity name, the path is returned for the corresponding intranet site to be directed to
+    *  The blog_id of intended site is also returned by reference
+    */
+    public function getPathforSiteBasedOnTitle()
+    {
+        $resource_id = $this->resourceLink->getId();
+        // extract the name of the site from the activity name, all text after the colon.
+    	$path = substr($activity_name, strpos($activity_name, ":") + 1);
+    	// strip leading and lagging spaces if ANY
+    	$path = trim($path);
+
+    	($verbose ?  error_log('blog path variable set to: ' . $path) : false);
+
+    	// get intended blog ID based on sub-site's name
+    	// Get any folder(s) that WordPress might be living in
+    	$wppath = parse_url(get_option('siteurl'), PHP_URL_PATH);
+    	$fullpath = $wppath . '/' . trailingslashit($path);
+
+    	// Get the id of the blog, if exists
+    	$intended_blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1);
+    	return $path;
+    }
+
 
 }
 
