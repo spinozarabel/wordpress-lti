@@ -12,3 +12,12 @@ Visit the wiki for [documentation](https://github.com/celtic-project/wordpress-l
 ## Licence
 
 [Creative Commons GNU General Public Licence Version 3](LICENSE)
+
+## Modifications
+
+* Blog creation is removed. This is a means for SSO from Moodle to Wordpress multi-site.
+* User is directed to an existing blog which matches the calling activity name
+* Moodle API API is used to get user data from Moodle instance
+* Cashfree API is used to get Virtual Account information from payment vendor
+* Data is shuffled around from Moodle and cashfree to user's wordpress user meta
+for use in payments using WooCommerce and other custom plugins
