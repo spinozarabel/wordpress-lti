@@ -692,6 +692,117 @@ class WPTool extends Tool
     	return;
     } // end of function updateUserMeta
 
+    /**
+    *
+    *
+    */
+    function update_create_VA()
+    {
+    	require_once(__DIR__."/madhu_added_api/cfAutoCollect.inc.php");	// API to acess CashFree
+
+        $site_name          = $this->site_name;
+        $user_moodle_data   = $this->user_moodle_data;
+        $blog_id            = $this->blog_id;
+
+    	// setup gateway api instance only if sutename is not blank
+        if (!empty($site_name))
+        {
+            try
+                {
+                  // creates a new API instance, autheticates using ID and secret and generates token
+                  // token is valid for only 5 minutes so make sure this API is done by then
+                  $pg_api = new CfAutoCollect($site_name, $blog_id);    // create a new API instance
+                }
+            catch (Exception $e)
+                {
+                  error_log("Error creating cashfree_api instance for: " . $user_moodle_data->sritoni_username
+    			  														 . " " . $e->getMessage());
+    			  $user_moodle_data->error_va_create = "Error creating cashfree_api instance for: "
+    			  										. $site_name . " " . $e->getMessage();
+                  $this->user_moodle_data = $user_moodle_data;
+                  return;
+                }
+        }
+    	// API instance created successfully
+
+    	// get user info to pass onto CashFree for new VA if needed
+    	$employeenumber 	= $user_moodle_data->sritoni_id;	// this is the unique sritoni idnumber assigned by school
+    	$fullname 			= $user_moodle_data->fullname;		// full name in SriToni
+    	$email				= $user_moodle_data->email;
+    	$phone				= $user_moodle_data->phone;			// main phone as in SriToni
+    	$moodleusername 	= $user_moodle_data->sritoni_username; // sritoni username issued by school
+    	$beneficiary_name 	= $user_moodle_data->beneficiary_name; // beneficiary name for this site account
+    	$moodleuserid		= $user_moodle_data->moodleuserid;
+
+    	if (strlen($phone) !=10)
+    	{
+    		$phone  = "1234567890";     // phone dummy number
+    	}
+
+    	// pad moodleuserid with 0's to get vAccountId
+    	$vAccountId = str_pad($moodleuserid, 4, "0", STR_PAD_LEFT);
+
+    	// does this user's VA exist?
+    	try
+    	{
+    		$vA =  $pg_api->getvAccountGivenId($vAccountId);
+    	}
+    	catch (Exception $e)
+    	{
+    		error_log("Error while checking for VA, CashFree API" . " " . $e->getMessage());
+    		$error_va_create = "Error while checking for VA with CashFree for " . $moodleusername . " " . $e->getMessage();
+    		$user_moodle_data->error_va_create = $error_va_create;
+            $this->user_moodle_data = $user_moodle_data;
+    		return;
+    	}
+    	// check using API successfull
+    	if ($vA)
+    	{
+    		// This account exists so lets populate the array to be returned
+    		error_log("VA exists but Moodle user field doesnt contain this: "
+    					. $site_name . " for this username: " . $moodleusername);
+    		$account_number         = $vA->virtualAccountNumber;
+    		$ifsc                   = $vA->ifsc;
+
+    		$account =    array  (
+    								"beneficiary_name"  => $beneficiary_name ,
+    								"va_id"             => $vA->vAccountId ,
+    								"account_number"    => $account_number ,
+    								"va_ifsc_code"      => $ifsc ,
+    							  );
+    	}
+    	else
+    	{
+    		// Create new VA since it doesn't exist for sure
+    		try
+    		{
+    			$vA 	= $pg_api->createVirtualAccount($vAccountId, $fullname, $phone, $email);
+    		}
+    		catch (Exception $e)
+    		{
+    			error_log( $e->getMessage() );
+    			$error_va_create = "Error while Creating VA with CashFree " . $site_name . " " . $e->getMessage();
+    			$user_moodle_data->error_va_create = $error_va_create;
+                $this->user_moodle_data = $user_moodle_data;
+    			return;
+    		}
+    		error_log("VA Doesnt exist, so, created for:" . $site_name . " for username: " . $moodleusername);
+    		// successful in creating VA for this site
+    		$account_number         = $vA->accountNumber;
+    		$ifsc                   = $vA->ifsc;
+
+    		$account =    array	(
+    								"beneficiary_name"  => $beneficiary_name ,
+    								"va_id"             => $vAccountId ,
+    								"account_number"    => $account_number ,
+    								"va_ifsc_code"      => $ifsc ,
+    							  );
+    	}
+        // add the newly created account into the data object for use later on
+        $user_moodle_data->accounts[$site_name] = $account;
+        $this->user_moodle_data                 = $user_moodle_data;
+    	return;
+    }
 
 }   // end of class definition
 
