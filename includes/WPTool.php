@@ -63,7 +63,8 @@ class WPTool extends Tool
     public function onLaunch()
     {
         // If multisite support isn't in play, go home
-        if (!is_multisite()) {
+        if (!is_multisite())
+        {
             $this->message = __('The LTI Plugin requires a Multisite installation of WordPress', 'lti-text');
             $this->ok = false;
             return;
@@ -77,10 +78,12 @@ class WPTool extends Tool
         $_SESSION[LTI_SESSION_PREFIX . 'return_name'] = '';
 
         // Store return URL for later use, if present
-        if (!empty($this->returnUrl)) {
+        if (!empty($this->returnUrl))
+        {
             $_SESSION[LTI_SESSION_PREFIX . 'return_url'] = (strpos($this->returnUrl, '?') === false) ? $this->returnUrl . '?' : $this->returnUrl . '&';
             $_SESSION[LTI_SESSION_PREFIX . 'return_name'] = 'Return to VLE';
-            if (!empty($this->platform->name)) {
+            if (!empty($this->platform->name))
+            {
                 $_SESSION[LTI_SESSION_PREFIX . 'return_name'] = 'Return to ' . $this->platform->name;
             }
         }
@@ -149,13 +152,16 @@ class WPTool extends Tool
         // Check if this username, $user_login, is already defined
         $user = get_user_by('login', $user_login);
 
-        if ($user) {
+        if ($user)
+        {
             // If user exists, simply save the current details
             $user->first_name = $this->userResult->firstname;
             $user->last_name = $this->userResult->lastname;
             $user->display_name = $this->userResult->fullname;
             $result = wp_insert_user($user);
-        } else {
+        }
+        else
+        {
             // Create username if user provisioning is on
             $result = wp_insert_user(
                 array(
@@ -170,11 +176,14 @@ class WPTool extends Tool
                 )
             );
             // Handle any errors by capturing and returning to the platform
-            if (is_wp_error($result)) {
+            if (is_wp_error($result))
+            {
                 $this->reason = $result->get_error_message();
                 $this->ok = false;
                 return;
-            } else {
+            }
+            else
+            {
                 // Get the new users details
                 $user = get_user_by('login', $user_login);
             }
@@ -194,15 +203,19 @@ class WPTool extends Tool
 
         // Create blog
         $use_context = false;
-        if (!empty($context_id)) {
+        if (!empty($context_id))
+        {
             $use_context = ($this->resourceLink->getSetting('custom_use_context') == 'true') ? true : false;
         }
 
-        if ($use_context) {
+        if ($use_context)
+        {
             // Create new blog, if does not exist. Note this gives one blog per context, the platform supplies a context_id
             // otherwise it creates a blog per resource_id
             $path = $key . '_' . $context_id;
-        } else {
+        }
+        else
+        {
             // Create new blog, if does not exist. Note this gives one blog per resource_id
             $path = $key . $resource_id;
         }
@@ -211,7 +224,8 @@ class WPTool extends Tool
         $path = preg_replace('/[^_0-9a-zA-Z-]+/', '-', $path);
 
         // Sanity Check: Ensure that path is only _A-Za-z0-9- --- the above should stop this.
-        if (preg_match('/[^_0-9a-zA-Z-]+/', $path) == 1) {
+        if (preg_match('/[^_0-9a-zA-Z-]+/', $path) == 1)
+        {
             $this->reason = __('No Blog has been created as the name contains non-alphanumeric: (_a-zA-Z0-9-) allowed', 'lti-text');
             $this->ok = false;
             return;
@@ -224,13 +238,15 @@ class WPTool extends Tool
         // Get the id of the blog, if exists
         $blog_id = domain_exists(DOMAIN_CURRENT_SITE, $path, 1);
         // If Blog does not exist and this is a member of staff and blog provisioning is on, create blog
-        if (!$blog_id && $staff) {
+        if (!$blog_id && $staff)
+        {
             $blog_id = wpmu_create_blog(DOMAIN_CURRENT_SITE, $path, $this->resourceLink->title, $user_id, '', '1');
             update_blog_option($blog_id, 'blogdescription', __('Provisioned by LTI', 'lti-text'));
         }
 
         // Blog will exist by this point unless this user is student/no role.
-        if (!$blog_id) {
+        if (!$blog_id)
+        {
             $this->reason = __('No Blog has been created for this context', 'lti-text');
             $this->ok = false;
             return;
@@ -240,7 +256,8 @@ class WPTool extends Tool
         update_blog_option($blog_id, 'blogname', $this->resourceLink->title);
 
         $role = 'subscriber';
-        if ($staff) {
+        if ($staff)
+        {
             $role = 'administrator';
         }
         if ($learner) {
@@ -248,7 +265,8 @@ class WPTool extends Tool
         }
 
         // Add user to blog and set role
-        if (!is_user_member_of_blog($user_id, $blog_id)) {
+        if (!is_user_member_of_blog($user_id, $blog_id))
+        {
             add_user_to_blog($blog_id, $user_id, $role);
         }
 
@@ -282,17 +300,20 @@ class WPTool extends Tool
         // If users role in platform has changed (e.g. staff -> student),
         // then their role in the blog should change
         $user = new WP_User($user_id);
-        if ($user->has_cap('administrator') && $role != 'administrator') {
+        if ($user->has_cap('administrator') && $role != 'administrator')
+        {
             $user->add_role($role);
             $user->remove_role('administrator');
         }
 
-        if ($user->has_cap('author') && $role != 'author') {
+        if ($user->has_cap('author') && $role != 'author')
+        {
             $user->add_role($role);
             $user->remove_role('author');
         }
 
-        if ($user->has_cap('subscriber') && $role != 'subscriber') {
+        if ($user->has_cap('subscriber') && $role != 'subscriber')
+        {
             $user->add_role($role);
             $user->remove_role('subscriber');
         }
@@ -300,7 +321,8 @@ class WPTool extends Tool
         // Send login time to platform if has outcomes service and can handle freetext
         $context = $this->resourceLink;
 
-        if ($context->hasOutcomesService()) {
+        if ($context->hasOutcomesService())
+        {
 
             // Presently this is just a demo of the outcome services and updating the menu bar in WordPress
             $outcome = new Outcome();
@@ -308,7 +330,8 @@ class WPTool extends Tool
             $result = $context->doOutcomesService(ResourceLink::EXT_READ, $outcome, $this->userResult);
 
             // If we have successfully read then update the user metadata
-            if ($result) {
+            if ($result)
+            {
                 update_user_meta($user_id, 'Last Login', $outcome->getValue());
             }
 
@@ -318,7 +341,7 @@ class WPTool extends Tool
 
         // Return URL for re-direction by Tool Provider class
         $this->redirectUrl = get_bloginfo('url');
-    }
+    }   // end of function onLaunch
 
     /*
     *  Based on activity name, the path is extracted and written to object
@@ -516,9 +539,13 @@ class WPTool extends Tool
 
     						// decode fees JSON  string to array
     						$fees_arr			= json_decode($fees_json_read, true);
-    						error_log(print_r($fees_arr, true));
+
+                            $user_moodle_data->fees_arr = $fees_arr;
+
+                            $this->user_moodle_data     = $user_moodle_data;
+
     						// process the fees array to extract current and arrears and add to user_moodle_data
-    						$this->process_fees_array($fees_arr, $user_moodle_data);
+    						$this->process_fees_array();
     					}
 
     				break;
@@ -630,7 +657,7 @@ class WPTool extends Tool
     * Update user meta only for payment sites. Account information needs info of specific payment site
     * you should come here only for payment sites
     */
-    function updateUserMeta()
+    public function updateUserMeta()
     {
         // extract wordpress user ID for shorter reference
         $user_id            = $this->user_id;
@@ -696,7 +723,7 @@ class WPTool extends Tool
     *
     *
     */
-    function update_create_VA()
+    public function update_create_VA()
     {
     	require_once(__DIR__."/madhu_added_api/cfAutoCollect.inc.php");	// API to acess CashFree
 
@@ -802,6 +829,108 @@ class WPTool extends Tool
         $user_moodle_data->accounts[$site_name] = $account;
         $this->user_moodle_data                 = $user_moodle_data;
     	return;
+    }
+
+    /**
+    *
+    * This function uses Moodle REST API to update virtualaccounts profile field with JSON encoded data
+    */
+    function update_moodle_field_virtualaccounts()
+    {
+    	require_once(__DIR__."/madhu_added_api/MoodleRest.php");	// API to acess Moodle
+
+        // is the ID used in USER tables in Moodle, passed in as $user_login
+        $moodle_user_id = $this->user_login;
+        $blog_id        = $this->blog_id;
+        $accounts       = $this->user_moodle_data->accounts;
+
+    	// prepare the Moodle Rest API object
+    	$MoodleRest 		= new MoodleRest();
+    	// read in base url of sritoni server from settings and append the webservice extesion to it
+    	$sritoni_url		= get_blog_option( $blog_id, "sritoni_settings")["sritoni_url"] . "/webservice/rest/server.php";
+    	//$MoodleRest->setServerAddress("https://hset.in/sritoni/webservice/rest/server.php");
+    	$MoodleRest->setServerAddress($sritoni_url);
+
+    	// get sritoni token from specific site's settings: we use hset_epayments which has blog_id of 12.
+    	$sritoni_token 		= get_blog_option( $blog_id, "sritoni_settings")["sritoni_token"];
+    	$MoodleRest->setToken( $sritoni_token );
+    	// Array is default. You can use RETURN_JSON or RETURN_XML too.
+    	$MoodleRest->setReturnFormat(MoodleRest::RETURN_ARRAY);
+    	// JSON encode the accounts array holding VA information newly created for this site
+    	$accounts_json = json_encode($accounts);
+
+    	// create the users array in format needed for Moodle RSET API
+    	$users = array("users" => array(array(	"id" 			=> $moodle_user_id,
+    											"customfields" 	=> array(array(	"type"	=>	"virtualaccounts",
+    																			"value"	=>	$accounts_json,
+    																		  )
+    																    )
+    										 )
+    								   )
+    				  );
+    	// now to update the user's profiel field virtualaccounts with latest completed payment
+    	$ret = $MoodleRest->request('core_user_update_users', $users, MoodleRest::METHOD_POST);
+
+    	return $ret;;
+    }
+
+    /**
+    *  The fees_arr is processed to extract current_fees and arrears_amount
+    *  The resulting data is written back to user_moodle_data
+    */
+    public function process_fees_array()
+    {
+        $fees_arr = $this->fees_arr;
+
+    	// 1st not paid item is current_fees, all other not paid fees are arrears_amount
+    	foreach ($fees_arr as $key => $fees)
+    	{
+    		// check if fees is unpaid and payee belongs to site name for ex: Head Start Educational Trust
+    		if ($fees["status"] == "not paid" && $fees["payee"] == $user_moodle_data->beneficiary_name)
+    		{
+    			// this is unpaid and belongs to this payee matches beneficiary of this site
+    			// extract 1st unpaid amount as well as grade to be paid for
+    			$current_fees	 			= $fees["amount"];
+    			$grade_for_current_fees 	= $fees["fees_for"];
+
+    			// json encode this fee item to store into WP user meta later
+    			$current_fee_description = json_encode($fees);
+                
+    			// break out of foreach loop we found our 1st not paid fee payment item
+    			break;
+    		}
+    	}
+    	// determine arrears if any for the payee of this site based on fees array
+    	$arrears_amount = 0;
+    	$arrears_arr 	= [];
+    	$arrears_description = "";
+
+    	foreach ($fees_arr as $key => $fees)
+    	{
+    		// we are excluding current fees but including all other unpaid fees as arrears
+    		if ($fees["status"] == "not paid" 							&&
+    		    $fees["payee"] == $user_moodle_data->beneficiary_name 	&&
+    			$fees["fees_for"] != $grade_for_current_fees) // don't include current fees in this
+    		{
+    			// accumulate the arrears amount for all arrears fee items
+    			$arrears_amount += $fees["amount"];
+    			// we add the not paid item into the arrears array
+    			$arrears_arr[]	= $fees;
+    			// form the description for the current fee item to be displayed before add to cart button
+    			//$arrears_description .= ($key + 1) . "Unpaid dues: Fee for " .  $fees['fees_for'] . " AY:" . $fees['ay'] . " of "
+    			//							       . get_woocommerce_currency_symbol() .  number_format($fees["amount"]) . ", ";
+    		}
+    	}
+    	// enode all unpaid items except for 1st one already taken as current fee item
+    	$arrears_description = json_encode($arrears_arr);
+    	// we need to update the data object with the processed data
+    	// data extracted from fees user field to be passed on to WP user meta
+    	$user_moodle_data->current_fees				= $current_fees;
+    	$user_moodle_data->grade_for_current_fees	= $grade_for_current_fees;
+    	$user_moodle_data->current_fee_description	= $current_fee_description;
+
+    	$user_moodle_data->arrears_amount			= $arrears_amount;
+    	$user_moodle_data->arrears_description		= $arrears_description;
     }
 
 }   // end of class definition
