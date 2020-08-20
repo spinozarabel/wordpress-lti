@@ -92,14 +92,19 @@ class WPTool extends Tool
         $options 		= get_site_option('lti_choices');
         $scope_userid   = lti_get_scope($this->platform->getKey());
         $user_login     = $this->userResult->getID($scope_userid);
-        // write this back into object for use elsewhere
-        $this->user_login = $user_login;
 
         // ------------- begin madhu added ------->
 
-        // run a function to extract intended site name and id
+        // Sanitize username stripping out unsafe characters
+    	$user_login 	= sanitize_user($user_login);
+
+        // write this back into object for use elsewhere. This is the Moodle id in table user
+        $this->user_login = $user_login;
+
+        // run a function to extract intended site name and blog_id
     	$this->getPathforSiteBasedOnTitle();
-        return;
+
+        // if we cannot find a valid existing site then return with error
         if (empty($this->blog_id))
     	{
             // couldn't get intended site id, return with error message
@@ -141,7 +146,7 @@ class WPTool extends Tool
 			}
 		}
 
-        // ------------- end madhu added section
+        // ------------- end madhu added section ------------->
 
         // Sanitize username stripping out unsafe characters
         $user_login = sanitize_user($user_login);
@@ -155,9 +160,10 @@ class WPTool extends Tool
         if ($user)
         {
             // If user exists, simply save the current details
-            $user->first_name = $this->userResult->firstname;
-            $user->last_name = $this->userResult->lastname;
+            $user->first_name   = $this->userResult->firstname;
+            $user->last_name    = $this->userResult->lastname;
             $user->display_name = $this->userResult->fullname;
+            $user->user_email   = $this->userResult->email;
             $result = wp_insert_user($user);
         }
         else
@@ -165,14 +171,14 @@ class WPTool extends Tool
             // Create username if user provisioning is on
             $result = wp_insert_user(
                 array(
-                    'user_login' => $user_login,
-                    'user_pass' => wp_generate_password(),
+                    'user_login'    => $user_login,
+                    'user_pass'     => wp_generate_password(),
                     'user_nicename' => $user_login,
-                    'first_name' => $this->userResult->firstname,
-                    'last_name' => $this->userResult->lastname,
-                    //'user_email'=> $this->userResult->email,
+                    'first_name'    => $this->userResult->firstname,
+                    'last_name'     => $this->userResult->lastname,
+                    'user_email'    => $this->userResult->email,
                     //'user_url' => 'http://',
-                    'display_name' => $this->userResult->fullname
+                    'display_name'  => $this->userResult->fullname
                 )
             );
             // Handle any errors by capturing and returning to the platform
@@ -197,9 +203,10 @@ class WPTool extends Tool
         $learner = $this->userResult->isLearner();
 
         // set up some useful variables
-        $key = $this->resourceLink->getKey();
-        $context_id = $this->context->getId();
-        $resource_id = $this->resourceLink->getId();
+        $key            = $this->resourceLink->getKey();
+        $context_id     = $this->context->getId();
+        $resource_id    = $this->resourceLink->getId();
+        $activity_name 	= $this->resourceLink->title;
 
         // Create blog
         $use_context = false;
@@ -220,6 +227,11 @@ class WPTool extends Tool
             $path = $key . $resource_id;
         }
 
+        // ----- section added by Madhu -----?
+        $path = $this->site_name;   // will override all the $path stuff above
+        $role 	= "subscriber";		// default role for all users
+        // ----- end section added by Madhu
+        /*
         // Replace any non-allowed characters in WordPress with -
         $path = preg_replace('/[^_0-9a-zA-Z-]+/', '-', $path);
 
@@ -230,20 +242,23 @@ class WPTool extends Tool
             $this->ok = false;
             return;
         }
+        */
 
         // Get any folder(s) that WordPress might be living in
         $wppath = parse_url(get_option('siteurl'), PHP_URL_PATH);
         $path = $wppath . '/' . trailingslashit($path);
 
-        // Get the id of the blog, if exists
-        $blog_id = domain_exists(DOMAIN_CURRENT_SITE, $path, 1);
+        // Get the id of the blog, we already know it exists
+        $blog_id = $this->blog_id;
+
+        /*
         // If Blog does not exist and this is a member of staff and blog provisioning is on, create blog
         if (!$blog_id && $staff)
         {
             $blog_id = wpmu_create_blog(DOMAIN_CURRENT_SITE, $path, $this->resourceLink->title, $user_id, '', '1');
             update_blog_option($blog_id, 'blogdescription', __('Provisioned by LTI', 'lti-text'));
         }
-
+        */
         // Blog will exist by this point unless this user is student/no role.
         if (!$blog_id)
         {
@@ -251,7 +266,7 @@ class WPTool extends Tool
             $this->ok = false;
             return;
         }
-
+/*
         // Update/create blog name
         update_blog_option($blog_id, 'blogname', $this->resourceLink->title);
 
@@ -263,7 +278,7 @@ class WPTool extends Tool
         if ($learner) {
             $role = 'author';
         }
-
+*/
         // Add user to blog and set role
         if (!is_user_member_of_blog($user_id, $blog_id))
         {
@@ -367,11 +382,8 @@ class WPTool extends Tool
     	$wppath = parse_url(get_option('siteurl'), PHP_URL_PATH);
     	$fullpath = $wppath . '/' . trailingslashit($site_name);
 
-    	// Get the id of the blog, if exists
-    	$blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1);
-
-        // write this back to the object for use when returned
-        $this->blog_id = $blog_id ?? null;
+    	// Get the id of the blog, if exists. Write this value to the object.
+    	$this->blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1) ?? null;
 
     	return;
     }
@@ -895,7 +907,7 @@ class WPTool extends Tool
 
     			// json encode this fee item to store into WP user meta later
     			$current_fee_description = json_encode($fees);
-                
+
     			// break out of foreach loop we found our 1st not paid fee payment item
     			break;
     		}
