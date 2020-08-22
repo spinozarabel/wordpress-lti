@@ -94,18 +94,20 @@ class WPTool extends Tool
         $user_login     = $this->userResult->getID($scope_userid);
 
         // ------------- begin madhu added ------->
-
+        // instantiate our user data object
+        $user_data	     = new stdClass;
+        $this->user_data = $user_data;
         // Sanitize username stripping out unsafe characters
-    	$user_login 	= sanitize_user($user_login);
+    	$user_login 	 = sanitize_user($user_login);
 
         // write this back into object for use elsewhere. This is the Moodle id in table user
-        $this->user_login = $user_login;
+        $this->user_data->user_login = $user_login;
 
         // run a function to extract intended site name and blog_id
     	$this->getPathforSiteBasedOnTitle();
 
         // if we cannot find a valid existing site then return with error
-        if (empty($this->blog_id))
+        if (empty($this->user_data->blog_id))
     	{
             // couldn't get intended site id, return with error message
     		$this->reason = __('Could not get a valid blog ID from name of launched activity. ' .
@@ -114,27 +116,31 @@ class WPTool extends Tool
             return;
     	}
         // for all payment sites get the Moodle user details to reject users early
-        if( preg_match("/\bpayments\b/i", $this->resource_link->title) )
+        if( preg_match("/\bpayments\b/i", $this->resourceLink->title) )
 		{
-			$this->getFilteredMoodleUserData();
+            // read in the options using get_blog_option
+            $this->getMoodleOptions();
+
+            // get user data from Moodle instance using Moodle REST API
+            $this->getFilteredMoodleUserData();
 
 			// if there was an error with the Moodle API exit and return to Moodle with error message
-			if ($this->user_moodle_data->error)
+			if ($this->user_data->error)
 			{
-				$this->reason = __($this->user_moodle_data->message, 'lti-text');
+				$this->reason = __($this->user_data->message, 'lti-text');
                 $this->ok = false;
                 return;
 			}
 
 			// check wether user VA needs to be created
-			if ($this->user_moodle_data->va_to_be_created)
+			if ($this->user_data->va_to_be_created)
 			{
 				// update if existing otherwise create new VA
 				$this->update_create_VA();
 				// check error message for errors in creation of VA
-				if (!empty($this->user_moodle_data->error_va_create))
+				if (!empty($this->user_data->error_va_create))
 				{
-					$this->reason = __($user_moodle_data->error_va_create, 'lti-text');
+					$this->reason = __($user_data->error_va_create, 'lti-text');
                     $this->ok = false;
                     return;
 				}
@@ -149,7 +155,7 @@ class WPTool extends Tool
         // ------------- end madhu added section ------------->
 
         // Sanitize username stripping out unsafe characters
-        $user_login = sanitize_user($user_login);
+        // $user_login = sanitize_user($user_login); // alreay done line 99
 
         // Apply the function pre_user_login before saving to the DB.
         $user_login = apply_filters('pre_user_login', $user_login);
@@ -315,6 +321,21 @@ class WPTool extends Tool
         // If users role in platform has changed (e.g. staff -> student),
         // then their role in the blog should change
         $user = new WP_User($user_id);
+
+        // --- begin section added by Madhu -->
+        // update user meta for payments account related only
+    	if( preg_match("/\bpayments\b/i", $activity_name) )
+		{
+			$roles = (array) $user->roles;  // this is an array of all roles that this loggedin user has
+
+            // add the roles of user to data object
+            $this->roles = $roles;
+
+            // update the user meta with data from data object
+            $this->updateUserMeta();
+		}
+        // --- end section added by Madhu
+        /*
         if ($user->has_cap('administrator') && $role != 'administrator')
         {
             $user->add_role($role);
@@ -332,7 +353,7 @@ class WPTool extends Tool
             $user->add_role($role);
             $user->remove_role('subscriber');
         }
-
+        */
         // Send login time to platform if has outcomes service and can handle freetext
         $context = $this->resourceLink;
 
@@ -358,9 +379,10 @@ class WPTool extends Tool
         $this->redirectUrl = get_bloginfo('url');
     }   // end of function onLaunch
 
-    /*
-    *  Based on activity name, the path is extracted and written to object
-    *  The blog_id of intended site is also extracted and written to object
+    /**
+    *  Based on activity name:
+    *  the path is extracted and written to $this
+    *  The blog_id of intended site is extracted and written to $this
     */
     public function getPathforSiteBasedOnTitle()
     {
@@ -374,7 +396,7 @@ class WPTool extends Tool
     	$site_name = trim($site_name);
 
         // write this back to the object for use elsewhere
-        $this->site_name = $site_name;
+        $this->user_data->site_name = $site_name;
 
     	($this->verbose ?  error_log('extracted site name is: ' . $site_name) : false);
 
@@ -383,7 +405,7 @@ class WPTool extends Tool
     	$fullpath = $wppath . '/' . trailingslashit($site_name);
 
     	// Get the id of the blog, if exists. Write this value to the object.
-    	$this->blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1) ?? null;
+    	$this->user_data->blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1) ?? null;
 
     	return;
     }
@@ -401,43 +423,32 @@ class WPTool extends Tool
     		require_once(__DIR__."/madhu_added_api/MoodleRest.php");	// API to acess Moodle
 
             // extract variable from object to make references short
-            $user_login = $this->user_login;
-            $blog_id    = $this->blog_id;
-            $site_name  = $this->site_name;
-
-    		// null the $user_moodle_data object to start with
-    		$user_moodle_data	= new stdClass;
+            $user_login = $this->user_data->user_login;
+            $blog_id    = $this->user_data->blog_id;
+            $site_name  = $this->user_data->site_name;
 
     		// initialize VA vreation flag to false up front
-    		$user_moodle_data->va_to_be_created = false;
+    		$this->user_data->va_to_be_created = false;
 
-    		// these are the possible values of student category that should be defined in Moodle.
-    		$studentcat_possible	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['studentcat_possible'] );
 
-    		// array of possible groups. User must be in one of these
-    		$group_possible			= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['group_possible'] );
-
-    		// array of whitelisted users for whom no checks are done
-    		$whitelist_idnumbers	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['whitelist_idnumbers'] );
-
-    		// get the string of course ID - Grouping ID comma separated list from settings
-    		$setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
     		$chunks = array_chunk(preg_split('/(-|,)/', $setting_courseid_groupingid), 2);
     		$courseid_groupingid_arr = array_combine(array_column($chunks, 0), array_column($chunks, 1));
 
-    		// get beneficiary name from settings
-    		$beneficiary_name	= get_blog_option( $blog_id, "sritoni_settings")["beneficiary_name"];
-    		$user_moodle_data->beneficiary_name	= $beneficiary_name;
+    		// extract beneficiary name from object
+    		$beneficiary_name	= $this->user_data->beneficiary_name;
 
     		// prepare the Moodle Rest API object
     		$MoodleRest 	= new MoodleRest();
+
     		// read in base url of sritoni server from settings and append the webservice extesion to it
-    		$sritoni_url	= get_blog_option( $blog_id, "sritoni_settings")["sritoni_url"] . "/webservice/rest/server.php";
+    		$sritoni_url	= $this->user_data->sritoni_url;
+
     		//$MoodleRest->setServerAddress("https://hset.in/sritoni/webservice/rest/server.php");
     		$MoodleRest->setServerAddress($sritoni_url);
 
-    		// get sritoni token from specific site's settings: we use hset_epayments which has blog_id of 12.
-    		$sritoni_token 	= get_blog_option( $blog_id, "sritoni_settings")["sritoni_token"];
+    		// get sritoni token from user_data read in from site settings
+    		$sritoni_token 	= $this->user_data->sritoni_token;
+
     		$MoodleRest->setToken( $sritoni_token );
 
     		// Array is default. You can use RETURN_JSON or RETURN_XML too.
@@ -454,9 +465,8 @@ class WPTool extends Tool
     		if ( !( $moodle_users["users"][0] ) )
     		{
     			// failed to communicate effectively to moodle server since no users returned
-    			$user_moodle_data->error = true;
-    			$user_moodle_data->message = "Couldn't contact SriToni server from Payment Site, please try later or contact Admin";
-                $this->user_moodle_data = $user_moodle_data;
+    			$this->user_data->error = true;
+    			$this->user_data->message = "Couldn't contact SriToni server from Payment Site, please try later or contact Admin";
                 return;
     		}
 
@@ -465,7 +475,7 @@ class WPTool extends Tool
     		$sritoni_id			  = $moodle_users["users"][0]['idnumber'];
     		$sritoni_institution  = $moodle_users["users"][0]['institution'] ?? 'not set';
 
-    		// get custom fields associative array
+    		// get custom fields associative array for this user
     		$custom_fields 		  = $moodle_users["users"][0]["customfields"];
 
     		//initialize to null, will hold payment gateway's Virtual accounts later on
@@ -503,7 +513,7 @@ class WPTool extends Tool
     							 ($accounts[$site_name]['account_number'] == '0000') )
     						{
     							// Virtual account data non-existent in user profile field, set flag
-    							$user_moodle_data->va_to_be_created = true;
+    							$this->user_data->va_to_be_created = true;
     							($this->verbose ?  error_log('VA for this site non-existent or invalid account_number') : false);
 
     						}
@@ -512,7 +522,7 @@ class WPTool extends Tool
     					else
     					{
     						// Virtual account data non-existent in user profile field, set flag
-    						$user_moodle_data->va_to_be_created = true;
+    						$this->user_data->va_to_be_created = true;
     						($this->verbose ?  error_log('VA data non-existent in profile field') : false);
     					}
 
@@ -550,11 +560,9 @@ class WPTool extends Tool
     						error_log("fees JSON string read: $fees_json_read");
 
     						// decode fees JSON  string to array
-    						$fees_arr			= json_decode($fees_json_read, true);
+    						$fees_arr			        = json_decode($fees_json_read, true);
 
-                            $user_moodle_data->fees_arr = $fees_arr;
-
-                            $this->user_moodle_data     = $user_moodle_data;
+                            $this->user_data->fees_arr = $fees_arr;
 
     						// process the fees array to extract current and arrears and add to user_moodle_data
     						$this->process_fees_array();
@@ -572,44 +580,48 @@ class WPTool extends Tool
     		if (!$field_va_processed)
     		{
     			// so we have not encountered this field means that VA doesnt exist need to create
-    			$user_moodle_data->va_to_be_created = true;
+    			$this->user_data->va_to_be_created = true;
     			($this->verbose ?  error_log('didnt encounter profile field virtualaccounts so set flag to create VA: '
-    			                        . $user_moodle_data->va_to_be_created) : false);
+    			                        . $this->user_data->va_to_be_created) : false);
     		}
 
     		// add the data to the user object we created so we can return it later
-    		$user_moodle_data->student_class	= $student_class;
-    		$user_moodle_data->studentcat		= $studentcat;
+    		$this->user_data->student_class	    = $student_class;
+    		$this->user_data->studentcat		= $studentcat;
     		// accounts data extracted from Moodle. This may be empty or default data.
-    		$user_moodle_data->accounts			= $accounts;
-    		$user_moodle_data->sritoni_username	= $sritoni_username;
-    		$user_moodle_data->sritoni_id		= $sritoni_id;
-    		$user_moodle_data->sritoni_institution		= $sritoni_institution;
+    		$this->user_data->accounts			= $accounts;
+    		$this->user_data->sritoni_username	= $sritoni_username;
+    		$this->user_data->sritoni_id		= $sritoni_id;
+    		$this->user_data->sritoni_institution		= $sritoni_institution;
+            // added these for creation of VA later on
+    		$this->user_data->phone			    = $phone;
+    		$this->user_data->fullname			= $this->userResult->fullname;
+    		$this->user_data->email   			= $this->userResult->email;
+    		$this->user_data->moodleuserid		= $this->$user_login;
 
     		// check if user is to be permitted to site based on group, id, studentcat, etc.
     		switch (true)
     		{
     			// if user is in white list then no checks, also no creating new VA's so set flag to false
-    			case (in_array($sritoni_id, $whitelist_idnumbers)) :
-    				$user_moodle_data->error = false;
-    				$user_moodle_data->va_to_be_created = false;
+    			case (in_array($sritoni_id, $this->user_data->whitelist_idnumbers)) :
+    				$this->user_data->error             = false;
+    				$this->user_data->va_to_be_created  = false;
     			break;
 
     			// student has valid category, accept with no errors
-    			case ( in_array($studentcat, $studentcat_possible) ) :
-    				$user_moodle_data->error = false;
+    			case ( in_array($studentcat, $this->user_data->studentcat_possible) ) :
+    				$this->user_data->error             = false;
     			break;
 
     			// user doesn't have valid studentcat so reject with error message
-    			case ( !in_array($studentcat, $studentcat_possible) ) :
-    				$user_moodle_data->error = true;
-    				$user_moodle_data->message = "Your student category: " . $studentcat . " is not valid, you cannot access This site";
-                    $this->user_moodle_data = $user_moodle_data;
+    			case ( !in_array($studentcat, $this->user_data->studentcat_possible) ) :
+    				$this->user_data->error = true;
+    				$this->user_data->message = "Your student category: " . $studentcat . " is not valid, you cannot access This site";
                     return;
     		}
 
     		// extract course ID needed to query Moodle for groups in that course later on
-    		$courseid		= $this->resource_link->lti_context_id;
+    		$courseid		= $this->resourceLink->lti_context_id;
 
     		// based on couserid value assign grouingid. We will use this to get groups in a grouping in a course later
     		$groupingid		= $courseid_groupingid_arr[$courseid];
@@ -858,13 +870,10 @@ class WPTool extends Tool
 
     	// prepare the Moodle Rest API object
     	$MoodleRest 		= new MoodleRest();
-    	// read in base url of sritoni server from settings and append the webservice extesion to it
-    	$sritoni_url		= get_blog_option( $blog_id, "sritoni_settings")["sritoni_url"] . "/webservice/rest/server.php";
+
     	//$MoodleRest->setServerAddress("https://hset.in/sritoni/webservice/rest/server.php");
     	$MoodleRest->setServerAddress($sritoni_url);
 
-    	// get sritoni token from specific site's settings: we use hset_epayments which has blog_id of 12.
-    	$sritoni_token 		= get_blog_option( $blog_id, "sritoni_settings")["sritoni_token"];
     	$MoodleRest->setToken( $sritoni_token );
     	// Array is default. You can use RETURN_JSON or RETURN_XML too.
     	$MoodleRest->setReturnFormat(MoodleRest::RETURN_ARRAY);
@@ -943,6 +952,32 @@ class WPTool extends Tool
 
     	$user_moodle_data->arrears_amount			= $arrears_amount;
     	$user_moodle_data->arrears_description		= $arrears_description;
+    }
+
+    /**
+    *
+    */
+    public function getMoodleOptions()
+    {
+        $this->user_data->beneficiary_name      = get_blog_option( $blog_id, "sritoni_settings")["beneficiary_name"];
+
+        // read in base url of sritoni server from settings and append the webservice extesion to it
+    	$this->user_data->sritoni_url	        = get_blog_option( $blog_id, "sritoni_settings")["sritoni_url"] . "/webservice/rest/server.php";
+
+        // get sritoni token from specific site's settings: we use hset_epayments which has blog_id of 12.
+    	$this->user_data->sritoni_token         = get_blog_option( $blog_id, "sritoni_settings")["sritoni_token"];
+
+        // these are the possible values of student category that should be defined in Moodle.
+        $this->user_data->studentcat_possible	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['studentcat_possible'] );
+
+        // array of possible groups. User must be in one of these
+        $this->user_data->group_possible		= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['group_possible'] );
+
+        // array of whitelisted users for whom no checks are done
+        $this->user_data->whitelist_idnumbers	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['whitelist_idnumbers'] );
+
+        // get the string of course ID - Grouping ID comma separated list from settings
+        $this->user_data->setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
     }
 
 }   // end of class definition
