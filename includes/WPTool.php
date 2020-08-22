@@ -577,7 +577,7 @@ class WPTool extends Tool
 
                             $this->user_data->fees_arr = $fees_arr;
 
-    						// process the fees array to extract current and arrears and add to user_moodle_data
+    						// process the fees array to extract current and arrears and add to user_data
     						$this->process_fees_array();
 
                             // these are set from above function and extracted for use below
