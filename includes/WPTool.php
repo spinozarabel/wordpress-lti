@@ -432,25 +432,27 @@ class WPTool extends Tool
             $sritoni_url        = $this->user_data->sritoni_url;
             $sritoni_token 	    = $this->user_data->sritoni_token;
 
-            $courseid_groupingid_arr = $this->user_data->courseid_groupingid_arr;
+            $courseid_groupingid_arr    = $this->user_data->courseid_groupingid_arr;
+            $whitelist_idnumbers        = $this->user_data->whitelist_idnumbers;
+            $studentcat_possible        = $this->user_data->studentcat_possible;
+            $group_possible             = $this->user_data->group_possible;
+
+            $courseid		= $this->resourceLink->lti_context_id;
+    		$groupingid		= $courseid_groupingid_arr[$courseid];
 
     		// initialize VA vreation flag to false up front
     		$this->user_data->va_to_be_created = false;
 
-
-
+            // add this for convenience
+            $this->user_data->fullname			= $this->userResult->fullname;
+    		$this->user_data->email   			= $this->userResult->email;
+    		$this->user_data->moodleuserid		= $this->$user_login;
 
     		// prepare the Moodle Rest API object
     		$MoodleRest 	= new MoodleRest();
 
-    		// read in base url of sritoni server from settings and append the webservice extesion to it
-
-
     		//$MoodleRest->setServerAddress("https://hset.in/sritoni/webservice/rest/server.php");
     		$MoodleRest->setServerAddress($sritoni_url);
-
-    		// get sritoni token from user_data read in from site settings
-
 
     		$MoodleRest->setToken( $sritoni_token );
 
@@ -458,13 +460,14 @@ class WPTool extends Tool
     		$MoodleRest->setReturnFormat(MoodleRest::RETURN_ARRAY);
 
     		//$MoodleRest->setDebug(); //using this is giving problems with headers altrady sent so commented out
-    		// get moodle user details associated with this completed order from SriToni
+
+            // get moodle user details associated with this completed order from SriToni
     		// note that $user_login is same as Moodle user id, in fact derived from it.
     		$parameters 	= array("criteria" => array(array("key" => "id", "value" => $user_login )));
 
     		// get moodle user satisfying above criteria
     		$moodle_users 	= $MoodleRest->request('core_user_get_users', $parameters, MoodleRest::METHOD_GET);
-    		//
+
     		if ( !( $moodle_users["users"][0] ) )
     		{
     			// failed to communicate effectively to moodle server since no users returned
@@ -473,10 +476,13 @@ class WPTool extends Tool
                 return;
     		}
 
-    		$phone 				  = $moodle_users["users"][0]['phone1'];
-    		$sritoni_username	  = $moodle_users["users"][0]['username'];
-    		$sritoni_id			  = $moodle_users["users"][0]['idnumber'];
-    		$sritoni_institution  = $moodle_users["users"][0]['institution'] ?? 'not set';
+    		$this->user_data->phone               = $moodle_users["users"][0]['phone1'];
+
+    		$this->user_data->sritoni_username    = $moodle_users["users"][0]['username'];
+
+    		$this->user_data->sritoni_id		  = $moodle_users["users"][0]['idnumber'];
+
+    		$this->user_data->sritoni_institution = $moodle_users["users"][0]['institution'] ?? 'not set';
 
     		// get custom fields associative array for this user
     		$custom_fields 		  = $moodle_users["users"][0]["customfields"];
@@ -506,10 +512,11 @@ class WPTool extends Tool
     						$string_without_tags 	= strip_tags($field["value"]);
 
     						// decode json encoded string into an associative array
-    						$accounts				= json_decode($string_without_tags, true);
+    						$accounts				    = json_decode($string_without_tags, true);
+                            $this->user_data->accounts  = $accounts;
 
     						// this is the key for the VAs field in custom fields in moodle user data
-    						$field_va_key			= $key;
+    						// $field_va_key			= $key;
 
     						// check if account data for this site exists in $accounts
     						if ( empty($accounts[$site_name]) 	||
@@ -541,7 +548,7 @@ class WPTool extends Tool
 
                             $this->user_data->studentcat = $studentcat ?? null;
     					}
-    					$field_studentcat_key		= $key;  // this is the key for the studentcat field
+    					// $field_studentcat_key		= $key;  // this is the key for the studentcat field
 
     				break;
 
@@ -554,7 +561,7 @@ class WPTool extends Tool
 
                             $this->user_data->student_class = $student_class ?? null;
     					}
-    					$field_class_key			= $key;  // this is the key for the class field
+    					// $field_class_key			= $key;  // this is the key for the class field
 
     				break;
 
@@ -566,12 +573,17 @@ class WPTool extends Tool
     						$fees_json_read 	= strip_tags($field["value"]);
 
     						// decode fees JSON  string to array
-    						$fees_arr			        = json_decode($fees_json_read, true);
+    						$fees_arr			       = json_decode($fees_json_read, true);
 
                             $this->user_data->fees_arr = $fees_arr;
 
     						// process the fees array to extract current and arrears and add to user_moodle_data
     						$this->process_fees_array();
+
+                            // these are set from above function and extracted for use below
+                            $grade_for_current_fees = $this->user_data->grade_for_current_fees;
+                            $current_fees           = $this->user_data->current_fees;
+                            $arrears_amount         = $this->user_data->arrears_amount;
     					}
 
     				break;
@@ -591,43 +603,26 @@ class WPTool extends Tool
     			                        . $this->user_data->va_to_be_created) : false);
     		}
 
-    		// accounts data extracted from Moodle. This may be empty or default data.
-    		$this->user_data->accounts			= $accounts;
-    		$this->user_data->sritoni_username	= $sritoni_username;
-    		$this->user_data->sritoni_id		= $sritoni_id;
-    		$this->user_data->sritoni_institution		= $sritoni_institution;
-            // added these for creation of VA later on
-    		$this->user_data->phone			    = $phone;
-    		$this->user_data->fullname			= $this->userResult->fullname;
-    		$this->user_data->email   			= $this->userResult->email;
-    		$this->user_data->moodleuserid		= $this->$user_login;
-
     		// check if user is to be permitted to site based on group, id, studentcat, etc.
     		switch (true)
     		{
     			// if user is in white list then no checks, also no creating new VA's so set flag to false
-    			case (in_array($sritoni_id, $this->user_data->whitelist_idnumbers)) :
+    			case (in_array($sritoni_id, $whitelist_idnumbers)) :
     				$this->user_data->error             = false;
     				$this->user_data->va_to_be_created  = false;
     			break;
 
     			// student has valid category, accept with no errors
-    			case ( in_array($studentcat, $this->user_data->studentcat_possible) ) :
+    			case ( in_array($studentcat, $studentcat_possible) ) :
     				$this->user_data->error             = false;
     			break;
 
     			// user doesn't have valid studentcat so reject with error message
-    			case ( !in_array($studentcat, $this->user_data->studentcat_possible) ) :
+    			case ( !in_array($studentcat, $studentcat_possible) ) :
     				$this->user_data->error = true;
     				$this->user_data->message = "Your student category: " . $studentcat . " is not valid, you cannot access This site";
                     return;
     		}
-
-    		// extract course ID needed to query Moodle for groups in that course later on
-    		$courseid		= $this->resourceLink->lti_context_id;
-
-    		// based on couserid value assign grouingid. We will use this to get groups in a grouping in a course later
-    		$groupingid		= $courseid_groupingid_arr[$courseid];
 
     		// Extract this user's Groups, from courseid = 116, groupingid=24 for example
     		$parameters 	= 	array(
@@ -637,21 +632,22 @@ class WPTool extends Tool
     							 );
     		$user_groups 	= $MoodleRest->request('core_group_get_course_user_groups', $parameters, MoodleRest::METHOD_GET);
 
-
+            // these are the groups in the groupingid inside of this course, for this user
     		$groupname		= $user_groups["groups"][0]["name"] ?? "group not set";
+
     		// this should correspond to categories of products to be shown to user
     		$this->user_data->groupname	= $groupname;
 
-    		if ( !in_array($sritoni_id, $this->user_data->whitelist_idnumbers))	// do this check only for non-whitelsited users
+    		if ( !in_array($sritoni_id, $whitelist_idnumbers))	// do this check only for non-whitelsited users
     		{	// check that user's group is in permissible list
-    			if (in_array($this->user_data->grade_for_current_fees, $this->user_data->group_possible) ||  in_array($groupname, $this->user_data->group_possible))
+    			if (in_array($grade_for_current_fees, $group_possible) ||  in_array($groupname, $group_possible))
     			{
-    				$user_moodle_data->error = false;
+    				$this->user_data->error = false;
     			}
     			else
     			{
     				$this->user_data->error = true;
-    				$this->user_data->message = "Your grade to make payment for: " . $this->user_data->grade_for_current_fees .
+    				$this->user_data->message = "Your grade to make payment for: " . $grade_for_current_fees .
     							" or current grade: " . $groupname . " is not in permitted list, inform admin";
                     return;
     			}
@@ -675,7 +671,6 @@ class WPTool extends Tool
     			error_log('Arrears fees due amount : ' . 			$arrears_amount);
     		}
 
-    		$this->user_moodle_data = $user_moodle_data;
             return;
     }  // end of function getFilteredMoodleUserData
 
@@ -686,41 +681,41 @@ class WPTool extends Tool
     public function updateUserMeta()
     {
         // extract wordpress user ID for shorter reference
-        $user_id            = $this->user_id;
+        $user_id            = $this->user_data->user_id;
 
-        // extract user_moodle_data for shorter reference
-        $user_moodle_data   = $this->user_moodle_data;
+        // extract user_data for shorter reference
+        $user_data   = $this->user_data;
 
         // extract site_name
-        $site_name          = $this->site_name;
+        $site_name   = $user_data->site_name;
 
         // extract roles of user
-        $roles              = $this->roles;
+        $roles       = $user_data->roles;
 
-    	update_user_meta( $user_id, 'nickname', 				$user_moodle_data->sritoni_id);
-    	update_user_meta( $user_id, 'sritoni_username', 		$user_moodle_data->sritoni_username);
-    	update_user_meta( $user_id, 'sritoni_institution', 		$user_moodle_data->sritoni_institution);
+    	update_user_meta( $user_id, 'nickname', 				$user_data->sritoni_id);
+    	update_user_meta( $user_id, 'sritoni_username', 		$user_data->sritoni_username);
+    	update_user_meta( $user_id, 'sritoni_institution', 		$user_data->sritoni_institution);
 
-    	update_user_meta( $user_id, 'grade_for_current_fees',	$user_moodle_data->grade_for_current_fees);
-    	update_user_meta( $user_id, 'current_fees',				$user_moodle_data->current_fees);
-    	update_user_meta( $user_id, 'current_fee_description',	$user_moodle_data->current_fee_description);
+    	update_user_meta( $user_id, 'grade_for_current_fees',	$user_data->grade_for_current_fees);
+    	update_user_meta( $user_id, 'current_fees',				$user_data->current_fees);
+    	update_user_meta( $user_id, 'current_fee_description',	$user_data->current_fee_description);
 
-    	update_user_meta( $user_id, 'arrears_amount',			$user_moodle_data->arrears_amount);
-    	update_user_meta( $user_id, 'arrears_description',		$user_moodle_data->arrears_description);
+    	update_user_meta( $user_id, 'arrears_amount',			$user_data->arrears_amount);
+    	update_user_meta( $user_id, 'arrears_description',		$user_data->arrears_description);
 
 
     	if ( 	!(in_array( 'administrator', $roles )) &&
     					!(in_array( 'shop_manager',  $roles ))		)
     						{
     							// don't change meta for administrator and shop manager, but for all others
-    							update_user_meta( $user_id, 'sritoni_student_category', $user_moodle_data->studentcat);
-    							update_user_meta( $user_id, 'grade_or_class', $user_moodle_data->groupname);
+    							update_user_meta( $user_id, 'sritoni_student_category', $user_data->studentcat);
+    							update_user_meta( $user_id, 'grade_or_class', $user_data->groupname);
     						}
 
-    	$va_id 				= $user_moodle_data->accounts[$site_name]["va_id"] ?? "Account Not Created Yet";
-    	$account_number		= $user_moodle_data->accounts[$site_name]["account_number"] ?? "0000";
-    	$va_ifsc_code		= $user_moodle_data->accounts[$site_name]["va_ifsc_code"] ?? "Account Not Created Yet";
-    	$beneficiary_name 	= $user_moodle_data->accounts[$site_name]["beneficiary_name"] ?? "Account Not Created Yet";
+    	$va_id 				= $user_data->accounts[$site_name]["va_id"] ?? "Account Not Created Yet";
+    	$account_number		= $user_data->accounts[$site_name]["account_number"] ?? "0000";
+    	$va_ifsc_code		= $user_data->accounts[$site_name]["va_ifsc_code"] ?? "Account Not Created Yet";
+    	$beneficiary_name 	= $user_data->accounts[$site_name]["beneficiary_name"] ?? "Account Not Created Yet";
 
     	update_user_meta( $user_id, 'va_id', 			$va_id );
     	update_user_meta( $user_id, 'beneficiary_name', $beneficiary_name );
@@ -753,9 +748,9 @@ class WPTool extends Tool
     {
     	require_once(__DIR__."/madhu_added_api/cfAutoCollect.inc.php");	// API to acess CashFree
 
-        $site_name          = $this->site_name;
-        $user_moodle_data   = $this->user_moodle_data;
-        $blog_id            = $this->blog_id;
+        $user_data  = $this->user_data;
+        $site_name  = $user_data->site_name;
+        $blog_id    = $user_data->blog_id;
 
     	// setup gateway api instance only if sutename is not blank
         if (!empty($site_name))
@@ -768,24 +763,23 @@ class WPTool extends Tool
                 }
             catch (Exception $e)
                 {
-                  error_log("Error creating cashfree_api instance for: " . $user_moodle_data->sritoni_username
+                  error_log("Error creating cashfree_api instance for: " . $user_data->sritoni_username
     			  														 . " " . $e->getMessage());
-    			  $user_moodle_data->error_va_create = "Error creating cashfree_api instance for: "
+    			  $this->user_data->error_va_create = "Error creating cashfree_api instance for: "
     			  										. $site_name . " " . $e->getMessage();
-                  $this->user_moodle_data = $user_moodle_data;
                   return;
                 }
         }
     	// API instance created successfully
 
     	// get user info to pass onto CashFree for new VA if needed
-    	$employeenumber 	= $user_moodle_data->sritoni_id;	// this is the unique sritoni idnumber assigned by school
-    	$fullname 			= $user_moodle_data->fullname;		// full name in SriToni
-    	$email				= $user_moodle_data->email;
-    	$phone				= $user_moodle_data->phone;			// main phone as in SriToni
-    	$moodleusername 	= $user_moodle_data->sritoni_username; // sritoni username issued by school
-    	$beneficiary_name 	= $user_moodle_data->beneficiary_name; // beneficiary name for this site account
-    	$moodleuserid		= $user_moodle_data->moodleuserid;
+    	$employeenumber 	= $this->user_data->sritoni_id;	// this is the unique sritoni idnumber assigned by school
+    	$fullname 			= $this->user_data->fullname;		// full name in SriToni
+    	$email				= $this->user_data->email;
+    	$phone				= $this->user_data->phone;			    // main phone as in SriToni
+    	$moodleusername 	= $this->user_data->sritoni_username;   // sritoni username issued by school
+    	$beneficiary_name 	= $this->user_data->beneficiary_name;   // beneficiary name for this site account
+    	$moodleuserid		= $this->user_data->user_login;         // user ID in Moodle user table
 
     	if (strlen($phone) !=10)
     	{
@@ -804,16 +798,16 @@ class WPTool extends Tool
     	{
     		error_log("Error while checking for VA, CashFree API" . " " . $e->getMessage());
     		$error_va_create = "Error while checking for VA with CashFree for " . $moodleusername . " " . $e->getMessage();
-    		$user_moodle_data->error_va_create = $error_va_create;
-            $this->user_moodle_data = $user_moodle_data;
+    		$this->user_data->error_va_create = $error_va_create;
     		return;
     	}
-    	// check using API successfull
+    	// check if vA exists
     	if ($vA)
     	{
-    		// This account exists so lets populate the array to be returned
-    		error_log("VA exists but Moodle user field doesnt contain this: "
-    					. $site_name . " for this username: " . $moodleusername);
+    		// This account exists so lets populate the array to be used to write back to Moodle profile field
+    		($this->verbose ? error_log("VA exists but Moodle user field doesnt contain this: "
+    					. $site_name . " for this username: " . $moodleusername) : false);
+
     		$account_number         = $vA->virtualAccountNumber;
     		$ifsc                   = $vA->ifsc;
 
@@ -835,11 +829,10 @@ class WPTool extends Tool
     		{
     			error_log( $e->getMessage() );
     			$error_va_create = "Error while Creating VA with CashFree " . $site_name . " " . $e->getMessage();
-    			$user_moodle_data->error_va_create = $error_va_create;
-                $this->user_moodle_data = $user_moodle_data;
+    			$this->user_data->error_va_create = $error_va_create;
     			return;
     		}
-    		error_log("VA Doesnt exist, so, created for:" . $site_name . " for username: " . $moodleusername);
+    		($this->verbose ? error_log("VA Doesnt exist, so, created for:" . $site_name . " for username: " . $moodleusername) : false);
     		// successful in creating VA for this site
     		$account_number         = $vA->accountNumber;
     		$ifsc                   = $vA->ifsc;
@@ -852,8 +845,7 @@ class WPTool extends Tool
     							  );
     	}
         // add the newly created account into the data object for use later on
-        $user_moodle_data->accounts[$site_name] = $account;
-        $this->user_moodle_data                 = $user_moodle_data;
+        $this->user_data->accounts[$site_name] = $account;
     	return;
     }
 
@@ -866,9 +858,12 @@ class WPTool extends Tool
     	require_once(__DIR__."/madhu_added_api/MoodleRest.php");	// API to acess Moodle
 
         // is the ID used in USER tables in Moodle, passed in as $user_login
-        $moodle_user_id = $this->user_login;
-        $blog_id        = $this->blog_id;
-        $accounts       = $this->user_moodle_data->accounts;
+        $moodle_user_id = $this->user_data->user_login;
+        $blog_id        = $this->user_data->blog_id;
+        $accounts       = $this->user_data->accounts;
+
+        $sritoni_url    = $this->user_data->sritoni_url;
+        $sritoni_token  = $this->user_data->sritoni_token;
 
     	// prepare the Moodle Rest API object
     	$MoodleRest 		= new MoodleRest();
@@ -899,17 +894,18 @@ class WPTool extends Tool
 
     /**
     *  The fees_arr is processed to extract current_fees and arrears_amount
-    *  The resulting data is written back to user_moodle_data
+    *  The resulting data is written back to $this->user_data
     */
     public function process_fees_array()
     {
-        $fees_arr = $this->fees_arr;
+        // read the fees_arr that was read from the moodle profile field and json_decoded into an array
+        $fees_arr = $this->user_data->fees_arr;
 
     	// 1st not paid item is current_fees, all other not paid fees are arrears_amount
     	foreach ($fees_arr as $key => $fees)
     	{
     		// check if fees is unpaid and payee belongs to site name for ex: Head Start Educational Trust
-    		if ($fees["status"] == "not paid" && $fees["payee"] == $user_moodle_data->beneficiary_name)
+    		if ($fees["status"] == "not paid" && $fees["payee"] == $this->user_data->beneficiary_name)
     		{
     			// this is unpaid and belongs to this payee matches beneficiary of this site
     			// extract 1st unpaid amount as well as grade to be paid for
@@ -923,6 +919,9 @@ class WPTool extends Tool
     			break;
     		}
     	}
+        // unset at end of forach
+        unset ($fees);
+
     	// determine arrears if any for the payee of this site based on fees array
     	$arrears_amount = 0;
     	$arrears_arr 	= [];
@@ -932,7 +931,7 @@ class WPTool extends Tool
     	{
     		// we are excluding current fees but including all other unpaid fees as arrears
     		if ($fees["status"] == "not paid" 							&&
-    		    $fees["payee"] == $user_moodle_data->beneficiary_name 	&&
+    		    $fees["payee"] == $this->user_data->beneficiary_name 	&&
     			$fees["fees_for"] != $grade_for_current_fees) // don't include current fees in this
     		{
     			// accumulate the arrears amount for all arrears fee items
