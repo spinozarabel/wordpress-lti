@@ -427,27 +427,30 @@ class WPTool extends Tool
             $blog_id    = $this->user_data->blog_id;
             $site_name  = $this->user_data->site_name;
 
+            $beneficiary_name   = $this->user_data->beneficiary_name;
+
+            $sritoni_url        = $this->user_data->sritoni_url;
+            $sritoni_token 	    = $this->user_data->sritoni_token;
+
+            $courseid_groupingid_arr = $this->user_data->courseid_groupingid_arr;
+
     		// initialize VA vreation flag to false up front
     		$this->user_data->va_to_be_created = false;
 
 
-    		$chunks = array_chunk(preg_split('/(-|,)/', $setting_courseid_groupingid), 2);
-    		$courseid_groupingid_arr = array_combine(array_column($chunks, 0), array_column($chunks, 1));
 
-    		// extract beneficiary name from object
-    		$beneficiary_name	= $this->user_data->beneficiary_name;
 
     		// prepare the Moodle Rest API object
     		$MoodleRest 	= new MoodleRest();
 
     		// read in base url of sritoni server from settings and append the webservice extesion to it
-    		$sritoni_url	= $this->user_data->sritoni_url;
+
 
     		//$MoodleRest->setServerAddress("https://hset.in/sritoni/webservice/rest/server.php");
     		$MoodleRest->setServerAddress($sritoni_url);
 
     		// get sritoni token from user_data read in from site settings
-    		$sritoni_token 	= $this->user_data->sritoni_token;
+
 
     		$MoodleRest->setToken( $sritoni_token );
 
@@ -535,6 +538,8 @@ class WPTool extends Tool
     					{
     						// strip off html and other tags, change to lower case and trim whitespace at beginning and end.
     						$studentcat 			= trim( strtolower(strip_tags($field["value"])) );
+
+                            $this->user_data->studentcat = $studentcat ?? null;
     					}
     					$field_studentcat_key		= $key;  // this is the key for the studentcat field
 
@@ -546,6 +551,8 @@ class WPTool extends Tool
     					{
     						// strip off html and other tags, change to lower case and trim whitespace at beginning and end.
     						$student_class 			= trim( strtolower(strip_tags($field["value"])) );
+
+                            $this->user_data->student_class = $student_class ?? null;
     					}
     					$field_class_key			= $key;  // this is the key for the class field
 
@@ -557,7 +564,6 @@ class WPTool extends Tool
     					{
     						// strip off html and other tags
     						$fees_json_read 	= strip_tags($field["value"]);
-    						error_log("fees JSON string read: $fees_json_read");
 
     						// decode fees JSON  string to array
     						$fees_arr			        = json_decode($fees_json_read, true);
@@ -585,9 +591,6 @@ class WPTool extends Tool
     			                        . $this->user_data->va_to_be_created) : false);
     		}
 
-    		// add the data to the user object we created so we can return it later
-    		$this->user_data->student_class	    = $student_class;
-    		$this->user_data->studentcat		= $studentcat;
     		// accounts data extracted from Moodle. This may be empty or default data.
     		$this->user_data->accounts			= $accounts;
     		$this->user_data->sritoni_username	= $sritoni_username;
@@ -637,20 +640,19 @@ class WPTool extends Tool
 
     		$groupname		= $user_groups["groups"][0]["name"] ?? "group not set";
     		// this should correspond to categories of products to be shown to user
-    		$user_moodle_data->groupname	= $groupname;
+    		$this->user_data->groupname	= $groupname;
 
-    		if ( !in_array($sritoni_id, $whitelist_idnumbers))	// do this check only for non-whitelsited users
+    		if ( !in_array($sritoni_id, $this->user_data->whitelist_idnumbers))	// do this check only for non-whitelsited users
     		{	// check that user's group is in permissible list
-    			if (in_array($grade_for_current_fees, $group_possible) ||  in_array($groupname, $group_possible))
+    			if (in_array($this->user_data->grade_for_current_fees, $this->user_data->group_possible) ||  in_array($groupname, $this->user_data->group_possible))
     			{
     				$user_moodle_data->error = false;
     			}
     			else
     			{
-    				$user_moodle_data->error = true;
-    				$user_moodle_data->message = "Your grade to make payment for: " . $grade_for_current_fees .
+    				$this->user_data->error = true;
+    				$this->user_data->message = "Your grade to make payment for: " . $this->user_data->grade_for_current_fees .
     							" or current grade: " . $groupname . " is not in permitted list, inform admin";
-                    $this->user_moodle_data = $user_moodle_data;
                     return;
     			}
     		}
@@ -667,7 +669,7 @@ class WPTool extends Tool
     			error_log('Sritoni User Phone : ' . 				$phone				);
     			error_log('SriToni Virtual Account details : '							);
     			error_log(print_r($accounts[$site_name],	true));
-    			error_log('VA create Flag Value : ' . 				$user_moodle_data->va_to_be_created);
+    			error_log('VA create Flag Value : ' . 				$this->user_data->va_to_be_created);
     			error_log('Current fees due amount : ' . 			$current_fees);
     			error_log('Grade for which Current fees due : ' . 	$grade_for_current_fees);
     			error_log('Arrears fees due amount : ' . 			$arrears_amount);
@@ -946,12 +948,12 @@ class WPTool extends Tool
     	$arrears_description = json_encode($arrears_arr);
     	// we need to update the data object with the processed data
     	// data extracted from fees user field to be passed on to WP user meta
-    	$user_moodle_data->current_fees				= $current_fees;
-    	$user_moodle_data->grade_for_current_fees	= $grade_for_current_fees;
-    	$user_moodle_data->current_fee_description	= $current_fee_description;
+    	$this->user_data->current_fees				= $current_fees;
+    	$this->user_data->grade_for_current_fees	= $grade_for_current_fees;
+    	$this->user_data->current_fee_description	= $current_fee_description;
 
-    	$user_moodle_data->arrears_amount			= $arrears_amount;
-    	$user_moodle_data->arrears_description		= $arrears_description;
+    	$this->user_data->arrears_amount			= $arrears_amount;
+    	$this->user_data->arrears_description		= $arrears_description;
     }
 
     /**
@@ -977,7 +979,12 @@ class WPTool extends Tool
         $this->user_data->whitelist_idnumbers	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['whitelist_idnumbers'] );
 
         // get the string of course ID - Grouping ID comma separated list from settings
-        $this->user_data->setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
+        $setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
+
+        $chunks = array_chunk(preg_split('/(-|,)/', $setting_courseid_groupingid), 2);
+		$courseid_groupingid_arr = array_combine(array_column($chunks, 0), array_column($chunks, 1));
+
+        $this->user_data->courseid_groupingid_arr = $courseid_groupingid_arr;
     }
 
 }   // end of class definition
