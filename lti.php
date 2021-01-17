@@ -63,38 +63,46 @@ function lti_parse_request($wp)
 {
     global $lti_db_connector;
 
-    if (isset($_GET['addplatform'])) {
-        require_once('includes' . DIRECTORY_SEPARATOR . 'DoAddLTIPlatform.php');
-        exit;
-    } else if (isset($_GET['keys'])) {
-        require_once('includes' . DIRECTORY_SEPARATOR . 'jwks.php');
-        exit;
-    } else if (isset($_GET['icon'])) {
-        wp_redirect(plugins_url() . '/lti/wp.png');
-        exit;
-    } else if (isset($_GET['xml'])) {
-        require_once('includes' . DIRECTORY_SEPARATOR . 'XML.php');
-        exit;
-    } else if (isset($_GET['configure'])) {
-        if (strtolower(trim($_GET['configure'])) !== 'json') {
-            require_once('includes' . DIRECTORY_SEPARATOR . 'CanvasXML.php');
-        } else {
-            require_once('includes' . DIRECTORY_SEPARATOR . 'CanvasJSON.php');
+    if (isset($_GET['lti'])) {
+        if (isset($_GET['addplatform'])) {
+            require_once('includes' . DIRECTORY_SEPARATOR . 'DoAddLTIPlatform.php');
+            exit;
+        } else if (isset($_GET['keys'])) {
+            require_once('includes' . DIRECTORY_SEPARATOR . 'jwks.php');
+            exit;
+        } else if (isset($_GET['icon'])) {
+            wp_redirect(plugins_url() . '/lti/wp.png');
+            exit;
+        } else if (isset($_GET['xml'])) {
+            require_once('includes' . DIRECTORY_SEPARATOR . 'XML.php');
+            exit;
+        } else if (isset($_GET['configure'])) {
+            if (strtolower(trim($_GET['configure'])) !== 'json') {
+                require_once('includes' . DIRECTORY_SEPARATOR . 'CanvasXML.php');
+            } else {
+                require_once('includes' . DIRECTORY_SEPARATOR . 'CanvasJSON.php');
+            }
+            exit;
+        } else if (isset($_GET['registration'])) {
+            require_once('includes' . DIRECTORY_SEPARATOR . 'registration.php');
+            exit;
+        } else if (isset($_GET['loading'])) {
+            wp_redirect(plugins_url() . '/lti/loading.gif');
+            exit;
+        } else if (($_SERVER['REQUEST_METHOD'] !== 'POST') && empty($_GET['iss']) && empty($_GET['openid_configuration'])) {
+            return false;
         }
-        exit;
-    } else if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        return false;
+        // Clear any existing session variables for this plugin
+        lti_reset_session();
+
+        // Deal with magic quotes before they cause OAuth to fail
+        lti_strip_magic_quotes();
+
+        // Do the necessary
+        $tool = new WPTool($lti_db_connector);
+        $tool->handleRequest();
+        exit();
     }
-    // Clear any existing session variables for this plugin
-    lti_reset_session();
-
-    // Deal with magic quotes before they cause OAuth to fail
-    lti_strip_magic_quotes();
-
-    // Do the necessary
-    $tool = new WPTool($lti_db_connector);
-    $tool->handleRequest();
-    exit();
 }
 
 // Add our function to the parse_request action
@@ -515,7 +523,7 @@ function lti_admin_bar_item_remove()
     /*     * *edit-profile is the ID** */
     $wp_admin_bar->remove_menu('edit-profile');
     $options = get_option('lti_options');
-    if ($options['mysites'] == 1) {
+    if ($options && $options['mysites'] == 1) {
         $wp_admin_bar->remove_node('my-sites');
     }
 }
