@@ -44,6 +44,8 @@ class WPTool extends Tool
     {
         parent::__construct($data_connector);
 
+        $this->verbose = true;
+
         $this->baseUrl = get_bloginfo('url') . '/';
 
         $this->vendor = new Profile\Item('celtic', 'ceLTIc Project', 'ceLTIc Project', 'https://www.celtic-project.org/');
@@ -77,7 +79,7 @@ class WPTool extends Tool
     protected function onLaunch()
     {
         // If multisite support isn't in play, go home
-        error_log( print_r( $this, true ) );
+
         if (!is_multisite())
         {
             $this->message = __('The LTI Plugin requires a Multisite installation of WordPress', 'lti-text');
@@ -401,6 +403,7 @@ class WPTool extends Tool
     */
     public function getPathforSiteBasedOnTitle()
     {
+        error_log( print_r( $this->resourceLink, true ) );
         // calling activity name from Moodle
         $activity_name = $this->resourceLink->title;
 
