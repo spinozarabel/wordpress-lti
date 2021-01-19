@@ -77,6 +77,7 @@ class WPTool extends Tool
     protected function onLaunch()
     {
         // If multisite support isn't in play, go home
+        error_log( print_r( $this, true ) );
         if (!is_multisite())
         {
             $this->message = __('The LTI Plugin requires a Multisite installation of WordPress', 'lti-text');
