@@ -44,7 +44,7 @@ class WPTool extends Tool
     {
         parent::__construct($data_connector);
 
-        $this->verbose = true;
+        $this->verbose = true;  // added by Madhu
 
         $this->baseUrl = get_bloginfo('url') . '/';
 
@@ -251,7 +251,7 @@ class WPTool extends Tool
         }
 
         // ----- section added by Madhu -----?
-        $path = $this->site_name;   // will override all the $path stuff above
+        $path = $this->user_data->site_name;   // will override all the $path stuff above
         $role 	= "subscriber";		// default role for all users
         // ----- end section added by Madhu
         /*
@@ -272,7 +272,7 @@ class WPTool extends Tool
         $path = $wppath . '/' . trailingslashit($path);
 
         // Get the id of the blog, we already know it exists
-        $blog_id = $this->blog_id;
+        $blog_id = $this->user_data->blog_id;
 
         /*
         // If Blog does not exist and this is a member of staff and blog provisioning is on, create blog
