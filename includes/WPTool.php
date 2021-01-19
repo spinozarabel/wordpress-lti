@@ -422,8 +422,12 @@ class WPTool extends Tool
     	$wppath = parse_url(get_option('siteurl'), PHP_URL_PATH);
     	$fullpath = $wppath . '/' . trailingslashit($site_name);
 
+      error_log( print_r( $fullpath, true ) );
+
     	// Get the id of the blog, if exists. Write this value to the object.
     	$this->user_data->blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1) ?? null;
+
+      error_log( print_r( $this->user_data->blog_id, true ) );
 
     	return;
     }
