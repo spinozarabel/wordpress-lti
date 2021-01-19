@@ -420,7 +420,7 @@ class WPTool extends Tool
 
         // Get any folder(s) that WordPress might be living in
       ($this->verbose ?  error_log('extracted siteurl is: ' . get_option('siteurl')) : false);
-    	$wppath = parse_url(get_option('siteurl'), PHP_URL_HOST);
+    	$wppath = parse_url(get_option('siteurl'), PHP_URL_PATH);
       ($this->verbose ?  error_log('extracted site url is: ' . $wppath) : false);
     	$fullpath = $wppath . '/' . trailingslashit($site_name);
 
@@ -429,7 +429,7 @@ class WPTool extends Tool
     	// Get the id of the blog, if exists. Write this value to the object.
     	$this->user_data->blog_id = domain_exists(DOMAIN_CURRENT_SITE, $fullpath, 1) ?? null;
 
-      ($this->verbose ?  error_log('extracted blog id is: ' . $fullpath) : false);
+      ($this->verbose ?  error_log('extracted blog id is: ' . $this->user_data->blog_id) : false);
 
     	return;
     }
