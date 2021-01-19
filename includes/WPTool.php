@@ -419,6 +419,7 @@ class WPTool extends Tool
     	($this->verbose ?  error_log('extracted site name is: ' . $site_name) : false);
 
         // Get any folder(s) that WordPress might be living in
+      ($this->verbose ?  error_log('extracted siteurl is: ' . get_option('siteurl')) : false);
     	$wppath = parse_url(get_option('siteurl'), PHP_URL_PATH);
       ($this->verbose ?  error_log('extracted site url is: ' . $wppath) : false);
     	$fullpath = $wppath . '/' . trailingslashit($site_name);
