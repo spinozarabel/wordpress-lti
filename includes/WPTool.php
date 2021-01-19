@@ -411,7 +411,7 @@ class WPTool extends Tool
     	$site_name = substr($activity_name, strpos($activity_name, ":") + 1);
 
         // strip leading and lagging spaces if ANY
-    	$site_name = trim($site_name);
+    	$site_name = trim($activity_name);
 
         // write this back to the object for use elsewhere
         $this->user_data->site_name = $site_name;
