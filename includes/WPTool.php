@@ -500,17 +500,20 @@ class WPTool extends Tool
     			$this->user_data->message = "Couldn't contact SriToni server from Payment Site, please try later or contact Admin";
           return;
     		}
-
-        ($this->verbose ?  error_log( 'Moodle user data array: ' . print_r( $moodle_users["users"][0], true ) ) : false);
+        // uncomment below statement for a full array dump for debugging
+        // ($this->verbose ?  error_log( 'Moodle user data array: ' . print_r( $moodle_users["users"][0], true ) ) : false);
 
     		$this->user_data->phone               = $moodle_users["users"][0]['phone1'];
+        $phone                                = $this->user_data->phone;
 
     		$this->user_data->sritoni_username    = $moodle_users["users"][0]['username'];
+        $sritoni_username                     = $this->user_data->sritoni_username;
 
     		$this->user_data->sritoni_id		      = $moodle_users["users"][0]['idnumber'];
+        $sritoni_id                           = $this->user_data->sritoni_id;
 
     		$this->user_data->sritoni_institution = $moodle_users["users"][0]['institution'] ?? 'not set';
-
+        $sritoni_institution                  = $this->user_data->sritoni_institution;
     		// get custom fields associative array for this user
     		$custom_fields 		  = $moodle_users["users"][0]["customfields"];
 
@@ -571,11 +574,10 @@ class WPTool extends Tool
     					if ($field["value"])
     					{
     						// strip off html and other tags, change to lower case and trim whitespace at beginning and end.
-    						$studentcat 			= trim( strtolower(strip_tags($field["value"])) );
+    						$this->user_data->studentcat  = trim( strtolower(strip_tags($field["value"])) ) ?? null;
+                $studentcat                   = $this->user_data->studentcat;
 
-                $this->user_data->studentcat = $studentcat ?? null;
     					}
-    					// $field_studentcat_key		= $key;  // this is the key for the studentcat field
 
     				break;  // case ( $field["shortname"] == "studentcat" ):
 
@@ -584,11 +586,9 @@ class WPTool extends Tool
     					if ($field["value"])
     					{
     						// strip off html and other tags, change to lower case and trim whitespace at beginning and end.
-    						$student_class 			= trim( strtolower(strip_tags($field["value"])) );
-
-                $this->user_data->student_class = $student_class ?? null;
+    						$this->user_data->student_class = $student_class  = trim( strtolower(strip_tags($field["value"])) ) ?? null;
+                $student_class                  = $this->user_data->student_class;
     					}
-    					// $field_class_key			= $key;  // this is the key for the class field
 
     				break;  // case ($field["shortname"] == "class"):
 
@@ -600,9 +600,8 @@ class WPTool extends Tool
     						$fees_json_read 	= strip_tags($field["value"]);
 
     						// decode fees JSON  string to array
-    						$fees_arr			       = json_decode($fees_json_read, true);
-
-                $this->user_data->fees_arr = $fees_arr;
+    						$this->user_data->fees_arr  = json_decode($fees_json_read, true);
+                $fees_arr                   = $this->user_data->fees_arr;
 
     						// process the fees array to extract current and arrears and add to user_data
     						$this->process_fees_array();
@@ -626,7 +625,7 @@ class WPTool extends Tool
     		{
     			// so we have not encountered this field means that VA doesnt exist need to create
     			$this->user_data->va_to_be_created = true;
-    			($this->verbose ?  error_log('didnt encounter profile field virtualaccounts so set flag to create VA: '
+    			($this->verbose ?  error_log('did NOT encounter profile field virtualaccounts, so set flag to create VA: '
     			                             . $this->user_data->va_to_be_created) : false);
     		}
 
@@ -637,11 +636,13 @@ class WPTool extends Tool
     			case (in_array($sritoni_id, $whitelist_idnumbers)) :
     				$this->user_data->error             = false;
     				$this->user_data->va_to_be_created  = false;
+            ($this->verbose ?  error_log('SriToniID not in Whitelist: ' . $sritoni_id) : false);
     			break;
 
     			// student has valid category, accept with no errors
     			case ( in_array($studentcat, $studentcat_possible) ) :
-    				$this->user_data->error             = false;
+    				$this->user_data->error = false;
+            ($this->verbose ?  error_log('Valid Student Category: ' . $studentcat) : false);
     			break;
 
     			// user doesn't have valid studentcat so reject with error message
@@ -685,10 +686,10 @@ class WPTool extends Tool
     			error_log('SriToni course ID : ' . 					$courseid			);
     			error_log('Sritoni user name : ' . 					$sritoni_username	);
     			error_log('Sritoni ID Number : ' . 					$sritoni_id			);
-    			error_log('Sritoni Student Category : ' . 			$studentcat			);
+    			error_log('Sritoni Student Category : ' . 	$studentcat			);
     			error_log('Sritoni institution : ' . 				$sritoni_institution);
-    			error_log('Sritoni Student Class : ' . 				$student_class		);
-    			error_log('Sritoni present Group : ' . 				$groupname			);
+    			error_log('Sritoni Student Class : ' . 			$student_class		);
+    			error_log('Sritoni present Group : ' . 			$groupname			);
     			error_log('Sritoni User Phone : ' . 				$phone				);
     			error_log('SriToni Virtual Account details : '							);
     			error_log(print_r($accounts[$site_name],	true));
@@ -698,7 +699,7 @@ class WPTool extends Tool
     			error_log('Arrears fees due amount : ' . 			$arrears_amount);
     		}
 
-            return;
+        return;
     }  // end of function getFilteredMoodleUserData
 
     /**
