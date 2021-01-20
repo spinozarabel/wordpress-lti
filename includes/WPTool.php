@@ -987,30 +987,40 @@ class WPTool extends Tool
     */
     public function getMoodleOptions()
     {
-        $this->user_data->beneficiary_name      = get_blog_option( $blog_id, "sritoni_settings")["beneficiary_name"];
+      $this->user_data->beneficiary_name    = get_blog_option( $blog_id, "sritoni_settings")["beneficiary_name"];
 
-        // read in base url of sritoni server from settings and append the webservice extesion to it
+      // read in base url of sritoni server from settings and append the webservice extesion to it
     	$this->user_data->sritoni_url	        = get_blog_option( $blog_id, "sritoni_settings")["sritoni_url"] . "/webservice/rest/server.php";
 
-        // get sritoni token from specific site's settings: we use hset_epayments which has blog_id of 12.
-    	$this->user_data->sritoni_token         = get_blog_option( $blog_id, "sritoni_settings")["sritoni_token"];
+      // get sritoni token from specific site's settings: we use hset_epayments which has blog_id of 12.
+    	$this->user_data->sritoni_token       = get_blog_option( $blog_id, "sritoni_settings")["sritoni_token"];
 
-        // these are the possible values of student category that should be defined in Moodle.
-        $this->user_data->studentcat_possible	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['studentcat_possible'] );
+      // these are the possible values of student category that should be defined in Moodle.
+      $this->user_data->studentcat_possible	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['studentcat_possible'] );
 
-        // array of possible groups. User must be in one of these
-        $this->user_data->group_possible		= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['group_possible'] );
+      // array of possible groups. User must be in one of these
+      $this->user_data->group_possible		  = explode( "," , get_blog_option($blog_id, 'sritoni_settings')['group_possible'] );
 
-        // array of whitelisted users for whom no checks are done
-        $this->user_data->whitelist_idnumbers	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['whitelist_idnumbers'] );
+      // array of whitelisted users for whom no checks are done
+      $this->user_data->whitelist_idnumbers	= explode( "," , get_blog_option($blog_id, 'sritoni_settings')['whitelist_idnumbers'] );
 
-        // get the string of course ID - Grouping ID comma separated list from settings
-        $setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
+      // get the string of course ID - Grouping ID comma separated list from settings
+      $setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
 
-        $chunks = array_chunk(preg_split('/(-|,)/', $setting_courseid_groupingid), 2);
-		$courseid_groupingid_arr = array_combine(array_column($chunks, 0), array_column($chunks, 1));
+      $chunks = array_chunk(preg_split('/(-|,)/', $setting_courseid_groupingid), 2);
+		  $courseid_groupingid_arr = array_combine(array_column($chunks, 0), array_column($chunks, 1));
 
-        $this->user_data->courseid_groupingid_arr = $courseid_groupingid_arr;
+      $this->user_data->courseid_groupingid_arr = $courseid_groupingid_arr;
+      if ($this->verbose)
+      {
+        error_log('beneficiary name is: ' . $this->user_data->beneficiary_name);
+        error_log('SriToni URL is: '      . $this->user_data->sritoni_url);
+        error_log('sritoni_token is: '    . $this->user_data->sritoni_token);
+        error_log('studentcat_possible'   . print_r($this->user_data->studentcat_possible, true));
+        error_log('group_possible'        . print_r($this->user_data->group_possible, true));
+        error_log('whitelist_idnumbers'   . print_r($this->user_data->group_possible, true));
+        error_log('courseid_groupingid'   . print_r($setting_courseid_groupingid, true));
+      }
     }
 
     protected function onRegistration()
