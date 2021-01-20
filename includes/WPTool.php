@@ -647,7 +647,7 @@ class WPTool extends Tool
     			// user doesn't have valid studentcat so reject with error message
     			case ( !in_array($studentcat, $studentcat_possible) ) :
     				$this->user_data->error = true;
-    				$this->user_data->message = "Your student category: " . $studentcat . " is not valid, you cannot access This site";
+    				$this->user_data->message = "Your student category: " . $studentcat . ", is not valid, you cannot access This site";
             return;
     		}  // End of Switch
 
@@ -1005,7 +1005,7 @@ class WPTool extends Tool
       $this->user_data->whitelist_idnumbers	= explode( "," , get_blog_option($this->user_data->blog_id, 'sritoni_settings')['whitelist_idnumbers'] );
 
       // get the string of course ID - Grouping ID comma separated list from settings
-      $setting_courseid_groupingid = get_blog_option($blog_id, 'sritoni_settings')['courseid_groupingid'];
+      $setting_courseid_groupingid = get_blog_option($this->user_data->blog_id, 'sritoni_settings')['courseid_groupingid'];
 
       $chunks = array_chunk(preg_split('/(-|,)/', $setting_courseid_groupingid), 2);
 		  $courseid_groupingid_arr = array_combine(array_column($chunks, 0), array_column($chunks, 1));
@@ -1018,7 +1018,7 @@ class WPTool extends Tool
         error_log('sritoni_token is: '    . $this->user_data->sritoni_token);
         error_log('studentcat_possible'   . print_r($this->user_data->studentcat_possible, true));
         error_log('group_possible'        . print_r($this->user_data->group_possible, true));
-        error_log('whitelist_idnumbers'   . print_r($this->user_data->group_possible, true));
+        error_log('whitelist_idnumbers'   . print_r($this->user_data->whitelist_idnumbers, true));
         error_log('courseid_groupingid'   . print_r($setting_courseid_groupingid, true));
       }
     }
