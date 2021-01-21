@@ -931,8 +931,8 @@ class WPTool extends Tool
     */
     public function process_fees_array()
     {
-        // read the fees_arr that was read from the moodle profile field and json_decoded into an array
-        $fees_arr = $this->user_data->fees_arr;
+      // read the fees_arr that was read from the moodle profile field and json_decoded into an array
+      $fees_arr = $this->user_data->fees_arr;
 
     	// 1st not paid item is current_fees, all other not paid fees are arrears_amount
     	foreach ($fees_arr as $key => $fees)
@@ -942,8 +942,8 @@ class WPTool extends Tool
     		{
     			// this is unpaid and belongs to this payee matches beneficiary of this site
     			// extract 1st unpaid amount as well as grade to be paid for
-    			$current_fees	 			= $fees["amount"];
-    			$grade_for_current_fees 	= $fees["fees_for"];
+    			$current_fees	 			     = $fees["amount"];
+    			$grade_for_current_fees  = $fees["fees_for"];
 
     			// json encode this fee item to store into WP user meta later
     			$current_fee_description = json_encode($fees);
@@ -963,9 +963,9 @@ class WPTool extends Tool
     	foreach ($fees_arr as $key => $fees)
     	{
     		// we are excluding current fees but including all other unpaid fees as arrears
-    		if ($fees["status"] == "not paid" 							&&
+    		if ($fees["status"] == "not paid" 							          &&
     		    $fees["payee"] == $this->user_data->beneficiary_name 	&&
-    			$fees["fees_for"] != $grade_for_current_fees) // don't include current fees in this
+    			  $fees["fees_for"] != $grade_for_current_fees) // don't include current fees in this
     		{
     			// accumulate the arrears amount for all arrears fee items
     			$arrears_amount += $fees["amount"];
