@@ -221,8 +221,11 @@ class WPTool extends Tool
         // Get user ID
         $user_id = $user->ID;
 
+        // write this to the user_data object for access by all class functions
+        $this->user_data->user_id = $user_id;
+
         // Staff or Learner
-        $staff = $this->userResult->isStaff() || $this->userResult->isAdmin();
+        $staff   = $this->userResult->isStaff() || $this->userResult->isAdmin();
         $learner = $this->userResult->isLearner();
 
         // set up some useful variables
