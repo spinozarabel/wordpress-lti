@@ -760,6 +760,7 @@ class WPTool extends Tool
     	{
     		// get user meta for this user and print them out
     		error_log('User meta read out in function updateusermeta: ');
+        error_log('WP User ID : ' 	            . $user_id);
     		error_log('Virtual Account ID : ' 	    . get_user_meta( $user_id, 'va_id' , 				              true )	);
     		error_log('VA Account Number : '  	    . get_user_meta( $user_id, 'account_number' , 	          true )	);
     		error_log('VA Beneficiary Name : '      . get_user_meta( $user_id, 'beneficiary_name' , 	        true )	);
