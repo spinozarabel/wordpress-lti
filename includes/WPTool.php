@@ -465,7 +465,7 @@ class WPTool extends Tool
         $studentcat_possible        = $this->user_data->studentcat_possible;
         $group_possible             = $this->user_data->group_possible;
 
-        $courseid		  = $this->resourceLink->lti_context_id;
+        $courseid		  = $this->resourceLink->context->lticontextid;
     		$groupingid		= $courseid_groupingid_arr[$courseid];
 
     		// initialize VA vreation flag to false up front
