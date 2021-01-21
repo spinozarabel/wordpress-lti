@@ -671,6 +671,7 @@ class WPTool extends Tool
 
         if ($this->verbose)
     		{
+          error_log('All groups for this groupingid ' . print_r($user_groups,	true));
     			error_log('SriToni course ID : ' . 					$courseid			);
     			error_log('Sritoni user name : ' . 					$sritoni_username	);
     			error_log('Sritoni ID Number : ' . 					$sritoni_id			);
@@ -980,12 +981,12 @@ class WPTool extends Tool
     	$arrears_description = json_encode($arrears_arr);
     	// we need to update the data object with the processed data
     	// data extracted from fees user field to be passed on to WP user meta
-    	$this->user_data->current_fees				= $current_fees;
+    	$this->user_data->current_fees				    = $current_fees;
     	$this->user_data->grade_for_current_fees	= $grade_for_current_fees;
     	$this->user_data->current_fee_description	= $current_fee_description;
 
-    	$this->user_data->arrears_amount			= $arrears_amount;
-    	$this->user_data->arrears_description		= $arrears_description;
+    	$this->user_data->arrears_amount			    = $arrears_amount;
+    	$this->user_data->arrears_description		  = $arrears_description;
     }
 
     /**
