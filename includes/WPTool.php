@@ -673,6 +673,7 @@ class WPTool extends Tool
     		{
           error_log('All groups for this groupingid ' . print_r($user_groups,	true));
     			error_log('SriToni course ID : ' . 					$courseid			);
+          error_log('SriToni grouping ID : ' . 				$groupingid			);
     			error_log('Sritoni user name : ' . 					$sritoni_username	);
     			error_log('Sritoni ID Number : ' . 					$sritoni_id			);
     			error_log('Sritoni Student Category : ' . 	$studentcat			);
