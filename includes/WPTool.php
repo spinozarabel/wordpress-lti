@@ -438,13 +438,16 @@ class WPTool extends Tool
     /**
     * Gets data from Moodle Server for the user given by the Moodle user ID using Moodle REST API
     * The user data is fetched.
-    * Based on calling course, a groupingid is preset and group is fetched.
+    * Based on calling course, a groupingid is looked up and group of user is fetched.
     * If values for studentcat field don't match permissible values user is returned with error message
     * If values for group don't match permissible values user is returned with error message
+    * the above filters are not used for users whose sritoni_id is in the whitelist_idnumbers
     * All required Moodle data is packaged into an aobject and returned
+    * Any errors are also returned
     */
     public function getFilteredMoodleUserData()
     {
+        // https://github.com/llagerlof/MoodleRest/blob/master/MoodleRest.php
     		require_once(__DIR__."/madhu_added_api/MoodleRest.php");	// API to acess Moodle
 
         // extract variable from object to make references short
@@ -486,7 +489,7 @@ class WPTool extends Tool
 
     		//$MoodleRest->setDebug(); //using this is giving problems with headers altrady sent so commented out
 
-        // get moodle user details associated with this completed order from SriToni
+        // get moodle user details
     		// note that $user_login is same as Moodle user id, in fact derived from it.
     		$parameters 	= array("criteria" => array(array("key" => "id", "value" => $user_login )));
 
@@ -495,9 +498,9 @@ class WPTool extends Tool
 
     		if ( !( $moodle_users["users"][0] ) )
     		{
-    			// failed to communicate effectively to moodle server since no users returned
+    			// failed to communicate effectively to moodle server since no users returned. We know this user exists
     			$this->user_data->error = true;
-    			$this->user_data->message = "Couldn't contact SriToni server from Payment Site, please try later or contact Admin";
+    			$this->user_data->message = "Couldn't contact SriToni server from Intranet, please try later or contact Admin";
           return;
     		}
         // uncomment below statement for a full array dump for debugging
@@ -652,7 +655,7 @@ class WPTool extends Tool
             return;
     		}  // End of Switch
 
-    		// Extract this user's Groups, from courseid = 116, groupingid=24 for example
+    		// Extract this user's Groups, from courseid and corresponding groupingid
     		$parameters 	= 	array(
                   								"courseid"		=> $courseid,
                   								"userid"		  => $user_login,
@@ -660,28 +663,13 @@ class WPTool extends Tool
                   						 );
     		$user_groups 	= $MoodleRest->request('core_group_get_course_user_groups', $parameters, MoodleRest::METHOD_GET);
 
-        // these are the groups in the groupingid inside of this course, for this user
+        // these are the groups in the groupingid inside of this course, for this user. Ensure only one such group exists
     		$groupname		= $user_groups["groups"][0]["name"] ?? "group not set";
 
     		// this should correspond to categories of products to be shown to user
     		$this->user_data->groupname	= $groupname;
 
-    		if ( !in_array($sritoni_id, $whitelist_idnumbers))	// do this check only for non-whitelsited users
-    		{	// check that user's group is in permissible list
-    			if (in_array($grade_for_current_fees, $group_possible) ||  in_array($groupname, $group_possible))
-    			{
-    				$this->user_data->error = false;
-    			}
-    			else
-    			{
-    				$this->user_data->error = true;
-    				$this->user_data->message = "Your grade to make payment for: " . $grade_for_current_fees .
-    							" or current grade: " . $groupname . " is not in permitted list, inform admin";
-                    return;
-    			}
-    		}
-
-    		if ($this->verbose)
+        if ($this->verbose)
     		{
     			error_log('SriToni course ID : ' . 					$courseid			);
     			error_log('Sritoni user name : ' . 					$sritoni_username	);
@@ -699,6 +687,21 @@ class WPTool extends Tool
     			error_log('Arrears fees due amount : ' . 			$arrears_amount);
     		}
 
+    		if ( !in_array($sritoni_id, $whitelist_idnumbers))	// do this check only for non-whitelsited users
+    		{	// check that user's group is in permissible list
+    			if (in_array($grade_for_current_fees, $group_possible) ||  in_array($groupname, $group_possible))
+    			{
+    				$this->user_data->error = false;
+    			}
+    			else
+    			{
+    				$this->user_data->error = true;
+    				$this->user_data->message = "Your grade to make payment for: " . $grade_for_current_fees .
+    							" or current grade: " . $groupname . " is not in permitted list, inform admin";
+            return;
+    			}
+    		}
+
         return;
     }  // end of function getFilteredMoodleUserData
 
@@ -708,11 +711,11 @@ class WPTool extends Tool
     */
     public function updateUserMeta()
     {
-        // extract wordpress user ID for shorter reference
-        $user_id            = $this->user_data->user_id;
-
-        // extract user_data for shorter reference
+        // extract user_data object for shorter reference
         $user_data   = $this->user_data;
+
+        // extract wordpress user ID for shorter reference
+        $user_id     = $user_data->user_id;
 
         // extract site_name
         $site_name   = $user_data->site_name;
@@ -720,34 +723,34 @@ class WPTool extends Tool
         // extract roles of user
         $roles       = $user_data->roles;
 
-    	update_user_meta( $user_id, 'nickname', 				$user_data->sritoni_id);
-    	update_user_meta( $user_id, 'sritoni_username', 		$user_data->sritoni_username);
-    	update_user_meta( $user_id, 'sritoni_institution', 		$user_data->sritoni_institution);
+    	update_user_meta( $user_id, 'nickname', 				        $user_data->sritoni_id);
+    	update_user_meta( $user_id, 'sritoni_username', 		    $user_data->sritoni_username);
+    	update_user_meta( $user_id, 'sritoni_institution', 		  $user_data->sritoni_institution);
 
-    	update_user_meta( $user_id, 'grade_for_current_fees',	$user_data->grade_for_current_fees);
-    	update_user_meta( $user_id, 'current_fees',				$user_data->current_fees);
+    	update_user_meta( $user_id, 'grade_for_current_fees',	  $user_data->grade_for_current_fees);
+    	update_user_meta( $user_id, 'current_fees',				      $user_data->current_fees);
     	update_user_meta( $user_id, 'current_fee_description',	$user_data->current_fee_description);
 
-    	update_user_meta( $user_id, 'arrears_amount',			$user_data->arrears_amount);
-    	update_user_meta( $user_id, 'arrears_description',		$user_data->arrears_description);
+    	update_user_meta( $user_id, 'arrears_amount',			      $user_data->arrears_amount);
+    	update_user_meta( $user_id, 'arrears_description',		  $user_data->arrears_description);
 
 
     	if ( 	!(in_array( 'administrator', $roles )) &&
-    					!(in_array( 'shop_manager',  $roles ))		)
-    						{
-    							// don't change meta for administrator and shop manager, but for all others
-    							update_user_meta( $user_id, 'sritoni_student_category', $user_data->studentcat);
-    							update_user_meta( $user_id, 'grade_or_class', $user_data->groupname);
-    						}
+    				!(in_array( 'shop_manager',  $roles ))		)
+			{
+				// don't change meta for administrator and shop manager, but for all others
+				update_user_meta( $user_id, 'sritoni_student_category',  $user_data->studentcat);
+				update_user_meta( $user_id, 'grade_or_class',            $user_data->groupname);
+			}
 
-    	$va_id 				= $user_data->accounts[$site_name]["va_id"] ?? "Account Not Created Yet";
-    	$account_number		= $user_data->accounts[$site_name]["account_number"] ?? "0000";
-    	$va_ifsc_code		= $user_data->accounts[$site_name]["va_ifsc_code"] ?? "Account Not Created Yet";
-    	$beneficiary_name 	= $user_data->accounts[$site_name]["beneficiary_name"] ?? "Account Not Created Yet";
+    	$va_id 				    = $user_data->accounts[$site_name]["va_id"]            ?? "Account Not Created Yet";
+    	$account_number		= $user_data->accounts[$site_name]["account_number"]   ?? "0000";
+    	$va_ifsc_code		  = $user_data->accounts[$site_name]["va_ifsc_code"]     ?? "Account Not Created Yet";
+    	$beneficiary_name = $user_data->accounts[$site_name]["beneficiary_name"] ?? "Account Not Created Yet";
 
-    	update_user_meta( $user_id, 'va_id', 			$va_id );
+    	update_user_meta( $user_id, 'va_id', 			      $va_id );
     	update_user_meta( $user_id, 'beneficiary_name', $beneficiary_name );
-    	update_user_meta( $user_id, 'va_ifsc_code', 	$va_ifsc_code );
+    	update_user_meta( $user_id, 'va_ifsc_code', 	  $va_ifsc_code );
     	update_user_meta( $user_id, 'account_number', 	$account_number );
 
 
@@ -756,12 +759,12 @@ class WPTool extends Tool
     	{
     		// get user meta for this user and print them out
     		error_log('User meta read out in function updateusermeta: ');
-    		error_log('Virtual Account ID : ' 	. 			get_user_meta( $user_id, 'va_id' , 				true )	);
-    		error_log('VA Account Number : '  	. 			get_user_meta( $user_id, 'account_number' , 	true )	);
-    		error_log('VA Beneficiary Name : '  . 			get_user_meta( $user_id, 'beneficiary_name' , 	true )	);
-    		error_log('VA IFSC Code : ' 		. 			get_user_meta( $user_id, 'va_ifsc_code' , 		true )	);
-    		error_log('current_fee_description : ' 		. 	get_user_meta( $user_id, 'current_fee_description' , 		true )	);
-    		error_log('arrears_description' 		. 		get_user_meta( $user_id, 'arrears_description' , true )	);
+    		error_log('Virtual Account ID : ' 	    . get_user_meta( $user_id, 'va_id' , 				              true )	);
+    		error_log('VA Account Number : '  	    . get_user_meta( $user_id, 'account_number' , 	          true )	);
+    		error_log('VA Beneficiary Name : '      . get_user_meta( $user_id, 'beneficiary_name' , 	        true )	);
+    		error_log('VA IFSC Code : ' 		        . get_user_meta( $user_id, 'va_ifsc_code' , 		          true )	);
+    		error_log('current_fee_description : ' 	. get_user_meta( $user_id, 'current_fee_description' , 		true )	);
+    		error_log('arrears_description' 		    . get_user_meta( $user_id, 'arrears_description' ,        true )	);
 
     	}
 
@@ -776,9 +779,18 @@ class WPTool extends Tool
     {
     	require_once(__DIR__."/madhu_added_api/cfAutoCollect.inc.php");	// API to acess CashFree
 
-        $user_data  = $this->user_data;
-        $site_name  = $user_data->site_name;
-        $blog_id    = $user_data->blog_id;
+        $user_data        = $this->user_data;
+
+        $site_name        = $this->user_data->site_name;
+        $blog_id          = $this->user_data->blog_id;
+        // get user info to pass onto CashFree for new VA if needed
+      	$employeenumber 	= $this->user_data->sritoni_id;	// this is the unique sritoni idnumber assigned by school
+      	$fullname 			  = $this->user_data->fullname;		// full name in SriToni
+      	$email				    = $this->user_data->email;
+      	$phone				    = $this->user_data->phone;			    // main phone as in SriToni
+      	$moodleusername 	= $this->user_data->sritoni_username;   // sritoni username issued by school
+      	$beneficiary_name = $this->user_data->beneficiary_name;   // beneficiary name for this site account
+      	$moodleuserid		  = $this->user_data->user_login;         // user ID in Moodle user table
 
     	// setup gateway api instance only if sutename is not blank
         if (!empty($site_name))
@@ -791,33 +803,26 @@ class WPTool extends Tool
                 }
             catch (Exception $e)
                 {
-                  error_log("Error creating cashfree_api instance for: " . $user_data->sritoni_username
+                  error_log("Error creating cashfree_api instance for: " . $this->user_data->sritoni_username
     			  														 . " " . $e->getMessage());
-    			  $this->user_data->error_va_create = "Error creating cashfree_api instance for: "
-    			  										. $site_name . " " . $e->getMessage();
+    			        $this->user_data->error_va_create = "Error creating cashfree_api instance for: "
+    			  								. $site_name . " " . $e->getMessage();
                   return;
                 }
         }
-    	// API instance created successfully
+    	// CashFree API instance created successfully
 
-    	// get user info to pass onto CashFree for new VA if needed
-    	$employeenumber 	= $this->user_data->sritoni_id;	// this is the unique sritoni idnumber assigned by school
-    	$fullname 			= $this->user_data->fullname;		// full name in SriToni
-    	$email				= $this->user_data->email;
-    	$phone				= $this->user_data->phone;			    // main phone as in SriToni
-    	$moodleusername 	= $this->user_data->sritoni_username;   // sritoni username issued by school
-    	$beneficiary_name 	= $this->user_data->beneficiary_name;   // beneficiary name for this site account
-    	$moodleuserid		= $this->user_data->user_login;         // user ID in Moodle user table
 
+      // ensure valid phone number is present or account will not be created. If needed use a dummy number
     	if (strlen($phone) !=10)
     	{
     		$phone  = "1234567890";     // phone dummy number
     	}
 
-    	// pad moodleuserid with 0's to get vAccountId
+    	// pad moodleuserid with 0's to get vAccountId with at least 4 characters as desired. So 1 becomes 0001, 1234 stays as 1234
     	$vAccountId = str_pad($moodleuserid, 4, "0", STR_PAD_LEFT);
 
-    	// does this user's VA exist?
+    	// does this user's VA already exist?
     	try
     	{
     		$vA =  $pg_api->getvAccountGivenId($vAccountId);
@@ -829,7 +834,7 @@ class WPTool extends Tool
     		$this->user_data->error_va_create = $error_va_create;
     		return;
     	}
-    	// check if vA exists
+    	// So we got something! check if vA exists
     	if ($vA)
     	{
     		// This account exists so lets populate the array to be used to write back to Moodle profile field
@@ -840,11 +845,11 @@ class WPTool extends Tool
     		$ifsc                   = $vA->ifsc;
 
     		$account =    array  (
-    								"beneficiary_name"  => $beneficiary_name ,
-    								"va_id"             => $vA->vAccountId ,
-    								"account_number"    => $account_number ,
-    								"va_ifsc_code"      => $ifsc ,
-    							  );
+                								"beneficiary_name"  => $beneficiary_name ,
+                								"va_id"             => $vA->vAccountId ,
+                								"account_number"    => $vA->virtualAccountNumber ,
+                								"va_ifsc_code"      => $vA->ifsc ,
+                						);
     	}
     	else
     	{
@@ -866,14 +871,14 @@ class WPTool extends Tool
     		$ifsc                   = $vA->ifsc;
 
     		$account =    array	(
-    								"beneficiary_name"  => $beneficiary_name ,
-    								"va_id"             => $vAccountId ,
-    								"account_number"    => $account_number ,
-    								"va_ifsc_code"      => $ifsc ,
-    							  );
+              								"beneficiary_name"  => $beneficiary_name ,
+              								"va_id"             => $vAccountId ,
+              								"account_number"    => $vA->accountNumber ,
+              								"va_ifsc_code"      => $vA->ifsc ,
+              							);
     	}
-        // add the newly created account into the data object for use later on
-        $this->user_data->accounts[$site_name] = $account;
+      // add the newly created account into the data object for use later on
+      $this->user_data->accounts[$site_name] = $account;
     	return;
     }
 
