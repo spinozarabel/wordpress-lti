@@ -346,7 +346,7 @@ class WPTool extends Tool
 			$roles = (array) $user->roles;  // this is an array of all roles that this loggedin user has
 
             // add the roles of user to data object
-            $this->roles = $roles;
+            $this->user_data->roles = $roles;
 
             // update the user meta with data from data object
             $this->updateUserMeta();
@@ -455,11 +455,10 @@ class WPTool extends Tool
         $blog_id    = $this->user_data->blog_id;
         $site_name  = $this->user_data->site_name;
 
+        // the variables below are ultimately derived from the option settings of plugin
         $beneficiary_name   = $this->user_data->beneficiary_name;
-
         $sritoni_url        = $this->user_data->sritoni_url;
         $sritoni_token 	    = $this->user_data->sritoni_token;
-
         $courseid_groupingid_arr    = $this->user_data->courseid_groupingid_arr;
         $whitelist_idnumbers        = $this->user_data->whitelist_idnumbers;
         $studentcat_possible        = $this->user_data->studentcat_possible;
@@ -671,7 +670,7 @@ class WPTool extends Tool
 
         if ($this->verbose)
     		{
-          error_log('All groups for this groupingid ' . print_r($user_groups,	true));
+          // error_log('All groups for this groupingid ' . print_r($user_groups,	true));
     			error_log('SriToni course ID : ' . 					$courseid			);
           error_log('SriToni grouping ID : ' . 				$groupingid			);
     			error_log('Sritoni user name : ' . 					$sritoni_username	);
