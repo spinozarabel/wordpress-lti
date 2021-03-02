@@ -3,7 +3,7 @@
   Plugin Name: LTI
   Plugin URI: http://www.spvsoftwareproducts.com/php/wordpress-lti/
   Description: This plugin allows WordPress to be integrated with on-line courses using the IMS Learning Tools Interoperability (LTI) specification.
-  Version: 2.0
+  Version: 2.2
   Network: true
   Author: Simon Booth, Stephen Vickers
   Author URI: http://www.celtic-project.org/
@@ -66,6 +66,9 @@ function lti_parse_request($wp)
     if (isset($_GET['lti'])) {
         if (isset($_GET['addplatform'])) {
             require_once('includes' . DIRECTORY_SEPARATOR . 'DoAddLTIPlatform.php');
+            exit;
+        } else if (isset($_GET['options'])) {
+            require_once('includes' . DIRECTORY_SEPARATOR . 'DoSaveOptions.php');
             exit;
         } else if (isset($_GET['keys'])) {
             require_once('includes' . DIRECTORY_SEPARATOR . 'jwks.php');
@@ -177,7 +180,7 @@ function lti_register_user_submenu_page()
                 __('lti_sync_enrolments', 'lti-text'), 'lti_sync_enrolments');
 
             // Called when lti_sync_enrolments page is called
-            add_action('admin_head-' . $plugin_page, 'lti_sync_admin_header');
+            add_action('load-' . $plugin_page, 'lti_sync_admin_header');
         }
 
         // Add a submenu to the tool menu for sharing if sharing is enabled and this is
@@ -230,6 +233,13 @@ function lti_sync_admin_header()
         }
         wp_redirect('users.php');
     }
+    $screen = get_current_screen();
+    add_screen_option('per_page', array('label' => __('Users', 'lti-text'), 'default' => 5, 'option' => 'users_per_page'));
+    $screen->add_help_tab(array(
+        'id' => 'lti-text-display',
+        'title' => __('Screen Display', 'lti-text'),
+        'content' => '<p>' . __('You can decide how many users to list per screen using the Screen Options tab.', 'lti-text') . '</p>'
+    ));
 }
 
 /* -------------------------------------------------------------------
@@ -284,11 +294,11 @@ function lti_platforms()
     ?>
     <div class="wrap">
 
-      <div id="icon-users" class="icon32"><br/></div>
-      <h2><?php _e('Platforms', 'lti-text'); ?>
-        <a href="<?php echo get_admin_url() ?>network/admin.php?page=lti_add_platform" class="add-new-h2"><?php
-          _e('Add New', 'lti-text');
-          ?></a></h2>
+      <h1 class="wp-heading-inline"><?php _e('Platforms', 'lti-text'); ?></h1>
+      <a href="<?php echo get_admin_url(); ?>network/admin.php?page=lti_add_platform" class="page-title-action"><?php
+        _e('Add New', 'lti-text');
+        ?></a>
+      <hr class="wp-header-end">
       <p>
         <?php echo __('Launch URL, Initiate Login URL, Redirection URI: ', 'lti-text') . '<b>' . get_option('siteurl') . '/?lti</b><br>'; ?>
         <?php echo __('Public Keyset URL: ', 'lti-text') . '<b>' . get_option('siteurl') . '/?lti&keys</b><br>'; ?>
@@ -403,6 +413,13 @@ function lti_options_init()
         'lti_options_setting_section', '', 'lti_options_section_info', 'lti_options_admin'
     );
     add_settings_field(
+        'uninstalldb', 'Delete data on uninstall?', 'lti_uninstalldb_callback', 'lti_options_admin', 'lti_options_setting_section'
+    );
+    add_settings_field(
+        'uninstallblogs', 'Delete LTI blogs on uninstall?', 'lti_uninstallblogs_callback', 'lti_options_admin',
+        'lti_options_setting_section'
+    );
+    add_settings_field(
         'adduser', 'Hide Add User Menu', 'lti_adduser_callback', 'lti_options_admin', 'lti_options_setting_section'
     );
     add_settings_field(
@@ -418,9 +435,27 @@ function lti_options_section_info()
 
 }
 
+function lti_uninstalldb_callback()
+{
+    $options = get_site_option('lti_choices');
+    printf(
+        '<input type="checkbox" name="lti_options[uninstalldb]" id="uninstalldb" value="1"%s> <label for="uninstalldb">Check this box if you want to permanently delete the LTI tables from the database when the plugin is uninstalled</label>',
+        ( isset($options['uninstalldb']) && $options['uninstalldb'] === '1' ) ? ' checked' : ''
+    );
+}
+
+function lti_uninstallblogs_callback()
+{
+    $options = get_site_option('lti_choices');
+    printf(
+        '<input type="checkbox" name="lti_options[uninstallblogs]" id="uninstallblogs" value="1"%s> <label for="uninstallblogs">Check this box if you want to permanently delete the LTI blogs when the plugin is uninstalled</label>',
+        ( isset($options['uninstallblogs']) && $options['uninstallblogs'] === '1' ) ? ' checked' : ''
+    );
+}
+
 function lti_adduser_callback()
 {
-    $options = get_option('lti_options');
+    $options = get_site_option('lti_choices');
     printf(
         '<input type="checkbox" name="lti_options[adduser]" id="adduser" value="1"%s> <label for="adduser">Check this box if there is no need to invite external users into blogs; i.e. all users will come via an LTI connection</label>',
         ( isset($options['adduser']) && $options['adduser'] === '1' ) ? ' checked' : ''
@@ -429,7 +464,7 @@ function lti_adduser_callback()
 
 function lti_mysites_callback()
 {
-    $options = get_option('lti_options');
+    $options = get_site_option('lti_choices');
     printf(
         '<input type="checkbox" name="lti_options[mysites]" id="mysites" value="1"%s> <label for="mysites">Check this box to prevent users from moving between their blogs in WordPress</label>',
         ( isset($options['mysites']) && $options['mysites'] === '1' ) ? ' checked' : ''
@@ -438,7 +473,7 @@ function lti_mysites_callback()
 
 function lti_scope_callback()
 {
-    $options = get_option('lti_options');
+    $options = get_site_option('lti_choices');
     ?>
     <fieldset><?php $checked = ( isset($options['scope']) && $options['scope'] === '3' ) ? 'checked' : ''; ?>
       <label for="lti_scope3"><input type="radio" name="lti_options[scope]" id="lti_scope3" value="3"<?php echo $checked; ?>> Resource: Prefix the ID with the consumer key and resource link ID</label><br>
@@ -460,16 +495,21 @@ function lti_options_page()
 {
     ?>
     <div class="wrap">
-      <h2><?php _e('Options', 'lti-text') ?></h2>
+      <h1 class="wp-heading-inline"><?php _e('Options', 'lti-text'); ?></h1>
       <?php settings_errors(); ?>
 
-      <form method="post" action="../options.php">
+      <form method="post" action="<?php echo get_option('siteurl') . '/?lti&options'; ?>">
         <?php
         settings_fields('lti_options_settings_group');
-        $options = get_option('lti_options');
-        // If no options set defaults
-        if (!isset($options) || empty($options)) {
-            update_option('lti_options', array('adduser' => 0, 'mysites' => 0, 'scope' => LTI_ID_SCOPE_DEFAULT));
+        $options = get_site_option('lti_choices');
+        if (!$options) {
+            $options = get_option('lti_options');  // Check in deprecated location
+            if (!$options) {  // If no options set defaults
+                $options = array('adduser' => 0, 'mysites' => 0, 'scope' => LTI_ID_SCOPE_DEFAULT);
+            } else {
+                delete_option('lti_options');
+            }
+            add_site_option('lti_choices', $options);
         }
         do_settings_sections('lti_options_admin');
         submit_button();
@@ -498,7 +538,7 @@ function lti_remove_menus()
 {
     global $submenu;
 
-    $options = get_option('lti_options');
+    $options = get_site_option('lti_choices');
     if ($options['adduser'] == 1) {
         unset($submenu['users.php'][10]);
     }
@@ -522,7 +562,7 @@ function lti_admin_bar_item_remove()
 
     /*     * *edit-profile is the ID** */
     $wp_admin_bar->remove_menu('edit-profile');
-    $options = get_option('lti_options');
+    $options = get_site_option('lti_choices');
     if ($options && $options['mysites'] == 1) {
         $wp_admin_bar->remove_node('my-sites');
     }
